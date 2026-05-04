@@ -155,3 +155,8 @@ segments_2i
 
 # Xperience license file - per-customer, never commit.
 **/xbyk-license.txt
+
+# Local-dev TLS certificates (mkcert PFX files) - per-developer, regenerated
+# from the local mkcert root CA. Never commit; see DancingGoat README for the
+# generation step.
+**/*.pfx

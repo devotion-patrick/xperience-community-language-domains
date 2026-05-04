@@ -18,8 +18,8 @@
     "DancingGoat": {
       "commandName": "Project",
       "launchBrowser": true,
-      "launchUrl": "http://en.dancinggoat.localtest.me:61154/",
-      "applicationUrl": "http://*:61154",
+      "launchUrl": "https://en.dancinggoat.localtest.me:61154/",
+      "applicationUrl": "https://*:61154",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }

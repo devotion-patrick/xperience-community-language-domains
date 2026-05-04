@@ -23,6 +23,70 @@ A single host can serve one root language plus N non-root languages on the same 
 
 By design, **a language can only appear under one hostname per channel**. Serving the same content on multiple domains is duplicate-content / bad SEO; the validator rejects it. Use edge-level 301 redirects if you need vanity-domain aliases.
 
+## How it works
+
+### Inbound: visitor → page
+
+The path-prefix middleware translates the user-facing URL into the storage form Kentico's URL-path routing actually looks up. The storage form is whatever Kentico writes to `WebPageUrlPath` — empty prefix for the channel's primary content language, `/{langcode}/` for everything else.
+
+```mermaid
+sequenceDiagram
+    participant V as Visitor
+    participant M as Path-prefix<br/>middleware
+    participant K as Kentico routing
+    participant DB as WebPageUrlPath
+
+    V->>M: GET en.example.com/about
+    Note over M: host=en.example.com → en (root)<br/>en is channel primary, storage prefix is empty<br/>display=storage, no rewrite
+    M->>K: GET /about
+    K->>DB: WebPageUrlPath = "about"
+    DB-->>K: en About page
+    K-->>V: 200 (en content)
+
+    V->>M: GET en.example.com/au/about
+    Note over M: host=en.example.com + /au/ → au<br/>au is non-primary, storage = "/au/about"<br/>display=storage, no rewrite
+    M->>K: GET /au/about
+    K->>DB: WebPageUrlPath = "au/about"
+    DB-->>K: au About page
+    K-->>V: 200 (au content)
+
+    V->>M: GET uk.example.com/about
+    Note over M: host=uk.example.com → uk (root)<br/>uk is non-primary, storage = "/uk/about"<br/>display ≠ storage, rewrite path
+    M->>K: GET /uk/about
+    K->>DB: WebPageUrlPath = "uk/about"
+    DB-->>K: uk About page
+    K-->>V: 200 (uk content)
+```
+
+### Outbound: generated URL → visitor-facing URL
+
+The URL retriever decorator translates the storage form Kentico produces back into the configured display form, and rebuilds the absolute URL onto the language's configured hostname.
+
+```mermaid
+sequenceDiagram
+    participant View as Razor view / controller
+    participant D as URL retriever<br/>decorator
+    participant Inner as Stock<br/>IWebPageUrlRetriever
+
+    View->>D: Retrieve(uk About page)
+    D->>Inner: inner.Retrieve(...)
+    Inner-->>D: ~/uk/about<br/>(absolute: en.example.com/uk/about)
+    Note over D: storage="/uk", display=""<br/>strip "/uk" → ~/about<br/>swap host → uk.example.com
+    D-->>View: ~/about<br/>(absolute: uk.example.com/about)
+
+    View->>D: Retrieve(au About page)
+    D->>Inner: inner.Retrieve(...)
+    Inner-->>D: ~/au/about<br/>(absolute: en.example.com/au/about)
+    Note over D: storage="/au", display="/au"<br/>no path rewrite<br/>swap host → en.example.com (already correct)
+    D-->>View: ~/au/about<br/>(absolute: en.example.com/au/about)
+```
+
+### Admin URLs tab parity
+
+The admin's URLs tab builds its rows directly from `IWebPageUrlListItemsRetriever` (an internal Kentico service) instead of going through `IWebPageUrlRetriever`. Without intervention, that means the admin shows un-rewritten URLs while the live site shows rewritten ones. The package's `DispatchProxy`-based decorator hooks into the internal service so editor-facing URLs match what visitors see.
+
+> 📷 _Screenshot placeholder: capture the URLs tab on a content item with multiple language variants on a running DancingGoat instance, showing each variant's hostname-rewritten URL (e.g. `https://en.dancinggoat.localtest.me/articles/...`, `https://es.dancinggoat.localtest.me/articulos/...`). Drop the image at `images/admin-urls-tab.png` and replace this note with `![Admin URLs tab](./images/admin-urls-tab.png)`._
+
 ## Supported use cases
 
 | Shape | Example | Use when |

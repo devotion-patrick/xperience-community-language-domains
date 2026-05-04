@@ -1,7 +1,8 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 
 using CMS.Websites;
+using CMS.Websites.Routing;
 
 using Kentico.Content.Web.Mvc;
 using Kentico.Content.Web.Mvc.Routing;
@@ -13,6 +14,8 @@ using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 using Microsoft.AspNetCore.Routing;
 
+using XperienceCommunity.LanguageDomains.Internal;
+
 namespace DancingGoat.Helpers
 {
     public class LanguageLinkTagHelper : TagHelper
@@ -23,6 +26,8 @@ namespace DancingGoat.Helpers
         private readonly IWebPageUrlRetriever webPageUrlRetriever;
         private readonly IPreferredLanguageRetriever currentLanguageRetriever;
         private readonly CurrentWebsiteChannelPrimaryLanguageRetriever websiteChannelPrimaryLanguageRetriever;
+        private readonly IWebsiteChannelContext channelContext;
+        private readonly HostnameLookupIndex hostnameLookup;
 
 
         public string LinkText { get; set; }
@@ -42,7 +47,9 @@ namespace DancingGoat.Helpers
             IHtmlGenerator htmlGenerator,
             IWebPageUrlRetriever webPageUrlRetriever,
             IPreferredLanguageRetriever currentLanguageRetriever,
-            CurrentWebsiteChannelPrimaryLanguageRetriever websiteChannelPrimaryLanguageRetriever)
+            CurrentWebsiteChannelPrimaryLanguageRetriever websiteChannelPrimaryLanguageRetriever,
+            IWebsiteChannelContext channelContext,
+            HostnameLookupIndex hostnameLookup)
         {
             this.httpContextAccessor = httpContextAccessor;
             this.pageDataContextRetriever = pageDataContextRetriever;
@@ -50,42 +57,66 @@ namespace DancingGoat.Helpers
             this.webPageUrlRetriever = webPageUrlRetriever;
             this.currentLanguageRetriever = currentLanguageRetriever;
             this.websiteChannelPrimaryLanguageRetriever = websiteChannelPrimaryLanguageRetriever;
+            this.channelContext = channelContext;
+            this.hostnameLookup = hostnameLookup;
         }
 
 
         public override async Task ProcessAsync(TagHelperContext context, TagHelperOutput output)
         {
-            // Page data context is initialized
+            var httpContext = httpContextAccessor.HttpContext;
+
+            // Page-context branch: ask Kentico for the page in the target
+            // language. XperienceCommunity.LanguageDomains' URL retriever
+            // decorator rewrites AbsoluteUrl onto the target language's
+            // configured hostname, so we use it directly instead of
+            // RelativePath (which would resolve against the *current* host).
             if (pageDataContextRetriever.TryRetrieve(out var webPageContext))
             {
                 var url = await webPageUrlRetriever.Retrieve(webPageContext.WebPage.WebPageItemID, LanguageName);
-
-                CreateActionLinkWithHref(output, url.RelativePath);
+                CreateActionLinkWithHref(output, url.AbsoluteUrl);
                 return;
             }
 
-            var httpContext = httpContextAccessor.HttpContext;
-
-            // Create a link for the current language (the URL stays as it is)
+            // Same-language link: keep the current URL exactly.
             if (currentLanguageRetriever.Get() == LanguageName)
             {
-                var url = UriHelper.GetEncodedUrl(httpContext.Request);
-                CreateActionLinkWithHref(output, url);
+                var encoded = UriHelper.GetEncodedUrl(httpContext.Request);
+                CreateActionLinkWithHref(output, encoded);
                 return;
             }
 
-            var originalRouteValues = httpContext.Request.RouteValues;
+            // Non-page routes (controller actions, search, etc.). Under the
+            // hostname-based model, language is implicit in the host - so we
+            // build an absolute URL on the target language's configured
+            // hostname keeping the same path and query string. No language
+            // prefix manipulation needed because each language is reachable
+            // at the same controller route on its own host.
+            var channelName = channelContext.WebsiteChannelName;
+            if (!string.IsNullOrEmpty(channelName))
+            {
+                var lookup = hostnameLookup.FindForLanguage(channelName, LanguageName);
+                if (lookup != null)
+                {
+                    var scheme = httpContext.Request.Scheme;
+                    var path = httpContext.Request.Path;
+                    var query = httpContext.Request.QueryString;
+                    var absoluteUrl = $"{scheme}://{lookup.Hostname.Hostname}{path}{query}";
+                    CreateActionLinkWithHref(output, absoluteUrl);
+                    return;
+                }
+            }
 
-            // Clone the original route information
+            // Fall back to stock route-based switching when the package has
+            // no configuration for this channel/language pair (mirrors the
+            // out-of-box DancingGoat behavior).
+            var originalRouteValues = httpContext.Request.RouteValues;
             var newRouteValues = new RouteValueDictionary(originalRouteValues);
 
             var queryParams = httpContext.Request.Query;
-
-            // Add query parameters (e.g. when performing a search)
             foreach (var queryParam in queryParams)
             {
                 var key = queryParam.Key;
-
                 if (!string.IsNullOrEmpty(key))
                 {
                     newRouteValues[key] = queryParams[key];
