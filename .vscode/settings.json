@@ -31,11 +31,11 @@
     "editor.defaultFormatter": "ms-dotnettools.csharp"
   },
 
-  "dotnet.defaultSolution": "Kentico.Xperience.RepoTemplate.slnx",
-  "dotnet.solution.autoOpen": "Kentico.Xperience.RepoTemplate.slnx",
+  "dotnet.defaultSolution": "XperienceCommunity.LanguageDomains.slnx",
+  "dotnet.solution.autoOpen": "XperienceCommunity.LanguageDomains.slnx",
 
   "eslint.workingDirectories": [
-    "./src/Kentico.Xperience.RepoTemplate.Admin/Client"
+    "./src/XperienceCommunity.LanguageDomains.Admin/Client"
   ],
 
   "files.associations": {

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>Hostname-based language switching for Xperience by Kentico website channels: serve each language on a dedicated host, optionally strip language path prefixes from URLs, and keep the admin UI in sync.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="CMS.AssemblyDiscoverableAttribute" />
+    <InternalsVisibleTo Include="XperienceCommunity.LanguageDomains.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Kentico.Xperience.WebApp" />
+    <PackageReference Include="Kentico.Xperience.Admin" />
+  </ItemGroup>
+
+</Project>

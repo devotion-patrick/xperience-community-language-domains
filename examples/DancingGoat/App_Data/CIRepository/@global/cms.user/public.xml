@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<cms.user>
+  <Email />
+  <FirstName />
+  <LastName />
+  <UserAdministrationAccess>False</UserAdministrationAccess>
+  <UserAuthenticatorSharedKeyResetRequested>False</UserAuthenticatorSharedKeyResetRequested>
+  <UserEnabled>True</UserEnabled>
+  <UserGUID>3758b9b5-045c-4b7d-b020-80f9b068d990</UserGUID>
+  <UserIsExternal>False</UserIsExternal>
+  <UserIsPendingRegistration>False</UserIsPendingRegistration>
+  <UserName>public</UserName>
+  <UserPassword />
+  <UserSecurityStamp>27a9a00f-4d11-4d90-bf74-1cf1c351d658</UserSecurityStamp>
+</cms.user>
