@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using CMS.ContentEngine;
 
 using DancingGoat;
-using DancingGoat.Commerce;
 using DancingGoat.Controllers;
 using DancingGoat.Models;
 using DancingGoat.ViewComponents;
@@ -28,9 +27,9 @@ namespace DancingGoat.Controllers
         private readonly ITaxonomyRetriever taxonomyRetriever;
         private readonly IPreferredLanguageRetriever currentLanguageRetriever;
         private readonly ProductRepository productRepository;
-        private readonly CalculationService calculationService;
 
         private const string PRODUCT_CATEGORY_FIELD_NAME = "ProductFieldCategory";
+        private const string PRODUCT_TYPE_SELECTION_OTHER_VALUE = "Other";
 
 
         public DancingGoatProductCategoryController(
@@ -38,15 +37,13 @@ namespace DancingGoat.Controllers
             NavigationService navigationService,
             ITaxonomyRetriever taxonomyRetriever,
             IPreferredLanguageRetriever currentLanguageRetriever,
-            ProductRepository productRepository,
-            CalculationService calculationService)
+            ProductRepository productRepository)
         {
             this.contentRetriever = contentRetriever;
             this.navigationService = navigationService;
             this.taxonomyRetriever = taxonomyRetriever;
             this.currentLanguageRetriever = currentLanguageRetriever;
             this.productRepository = productRepository;
-            this.calculationService = calculationService;
         }
 
 
@@ -61,7 +58,7 @@ namespace DancingGoat.Controllers
 
             var tagCollection = await TagCollection.Create(productCategoryPage.ProductCategoryTag.Select(t => t.Identifier));
 
-            var products = await GetProductsByTags(tagCollection, cancellationToken);
+            var products = await GetProductsByTags(productCategoryPage, tagCollection, cancellationToken);
 
             var productPageUrls = await productRepository.GetProductPageUrls(products.Cast<IContentItemFieldsSource>().Select(p => p.SystemFields.ContentItemID), cancellationToken);
 
@@ -69,21 +66,31 @@ namespace DancingGoat.Controllers
 
             var categoryMenu = await navigationService.GetStoreNavigationItemViewModels(languageName, cancellationToken);
 
-            var calculationResultItems = await calculationService.CalculateCatalogPrices(products, cancellationToken);
-
-            return View(ProductListingViewModel.GetViewModel(productCategoryPage, products, calculationResultItems, productPageUrls, productTagsTaxonomy, categoryMenu, languageName));
+            return View(ProductListingViewModel.GetViewModel(productCategoryPage, products, productPageUrls, productTagsTaxonomy, categoryMenu, languageName));
         }
 
 
-        public async Task<IEnumerable<IProductFields>> GetProductsByTags(TagCollection tagCollection, CancellationToken cancellationToken = default)
+        public async Task<IEnumerable<IProductFields>> GetProductsByTags(ProductCategory productCategoryPage,
+            TagCollection tagCollection, CancellationToken cancellationToken = default)
         {
-            var products = await contentRetriever.RetrieveContentOfReusableSchemas<IProductFields>(
+            var products = productCategoryPage.ProductType.Equals(PRODUCT_TYPE_SELECTION_OTHER_VALUE, StringComparison.InvariantCultureIgnoreCase)
+                ? await contentRetriever.RetrieveContentOfReusableSchemas<IProductFields>(
                     [IProductFields.REUSABLE_FIELD_SCHEMA_NAME],
                     new RetrieveContentOfReusableSchemasParameters
                     {
                         LinkedItemsMaxLevel = 1,
-                        WorkspaceNames = [DancingGoatConstants.COMMERCE_WORKSPACE_NAME],
-                        IncludeSecuredItems = User.Identity.IsAuthenticated
+                        WorkspaceNames = [DancingGoatConstants.COMMERCE_WORKSPACE_NAME]
+                    },
+                    query => query.Where(where => where.WhereContainsTags(PRODUCT_CATEGORY_FIELD_NAME, tagCollection)),
+                    new RetrievalCacheSettings($"WhereContainsTags_{PRODUCT_CATEGORY_FIELD_NAME}_{string.Join("_", tagCollection.TagIdentifiers)}"),
+                    cancellationToken
+                )
+                : await contentRetriever.RetrieveContentOfContentTypes<IProductFields>(
+                    [productCategoryPage.ProductType],
+                    new RetrieveContentOfContentTypesParameters
+                    {
+                        LinkedItemsMaxLevel = 1,
+                        WorkspaceNames = [DancingGoatConstants.COMMERCE_WORKSPACE_NAME]
                     },
                     query => query.Where(where => where.WhereContainsTags(PRODUCT_CATEGORY_FIELD_NAME, tagCollection)),
                     new RetrievalCacheSettings($"WhereContainsTags_{PRODUCT_CATEGORY_FIELD_NAME}_{string.Join("_", tagCollection.TagIdentifiers)}"),

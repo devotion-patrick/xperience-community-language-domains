@@ -1,0 +1,86 @@
+name: "Drift: XbyK Version Sweep"
+
+# Reflects on every published Kentico.Xperience.Admin version >= 30.6.0 and
+# asserts the IWebPageUrlListItemsRetriever.Retrieve contract still holds.
+# Catches drift in newly-released XbyK versions within ~7 days.
+#
+# Sweep is opt-in (the tests carry [Explicit] so the regular ci.yml workflow
+# never runs them). Triggers here:
+#   - schedule:           weekly cron (Mondays 09:00 UTC)
+#   - workflow_dispatch:  on-demand "Run workflow" button in the Actions UI
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sweep:
+    name: Reflect on every published Kentico.Xperience.Admin version
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+
+    env:
+      ASPNETCORE_ENVIRONMENT: CI
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+      DOTNET_NOLOGO: 1
+      # Tell XbykVersionSweepTests where to drop the per-version DLL cache.
+      # Stable path so actions/cache can save/restore across runs.
+      XCLD_XBYK_SWEEP_CACHE_DIR: ${{ runner.temp }}/xcld-xbyk-version-sweep
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      # The cache holds one extracted DLL per supported XbyK version (~1MB
+      # each, currently ~50MB total, growing slowly). First run downloads
+      # everything (~1 min); subsequent runs only fetch newly-published
+      # versions. Bump the trailing version in the key when the cache layout
+      # changes (e.g. test code starts caching different artifacts).
+      - name: Restore XbyK admin DLL cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.XCLD_XBYK_SWEEP_CACHE_DIR }}
+          key: xbyk-sweep-${{ runner.os }}-v1
+          restore-keys: |
+            xbyk-sweep-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore --locked-mode
+
+      - name: Build
+        run: |
+          dotnet build `
+            --configuration Release `
+            --no-restore
+
+      - name: Sweep
+        run: |
+          dotnet test `
+            --configuration Release `
+            --no-build `
+            --no-restore `
+            --filter "Category=XbykVersionSweep" `
+            --logger "trx;LogFileName=xbyk-sweep.trx" `
+            --results-directory ${{ runner.temp }}/test-results
+
+      # Always upload the trx so a failing run shows per-version detail in
+      # the artifact, not just a red x.
+      - name: Upload sweep results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xbyk-sweep-trx
+          path: ${{ runner.temp }}/test-results/**/*.trx
+          retention-days: 30

@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc.Rendering;
+﻿using Microsoft.AspNetCore.Mvc.Infrastructure;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Razor.TagHelpers;
@@ -9,6 +10,7 @@ namespace DancingGoat.Helpers;
 public class ActiveProductCategoryLinkTagHelper : TagHelper
 {
     private readonly IUrlHelperFactory urlHelperFactory;
+    private readonly IActionContextAccessor actionContextAccessor;
 
 
     [HtmlAttributeName("asp-active")]
@@ -20,15 +22,17 @@ public class ActiveProductCategoryLinkTagHelper : TagHelper
     public ViewContext ViewContext { get; set; }
 
 
-    public ActiveProductCategoryLinkTagHelper(IUrlHelperFactory urlHelperFactory)
+    public ActiveProductCategoryLinkTagHelper(IUrlHelperFactory urlHelperFactory, IActionContextAccessor actionContextAccessor)
     {
         this.urlHelperFactory = urlHelperFactory;
+        this.actionContextAccessor = actionContextAccessor;
     }
 
 
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
-        var urlHelper = urlHelperFactory.GetUrlHelper(ViewContext);
+        var actionContext = actionContextAccessor.ActionContext;
+        var urlHelper = urlHelperFactory.GetUrlHelper(actionContext);
 
         var currentPath = ViewContext.HttpContext.Request.Path.Value?.ToLowerInvariant();
 

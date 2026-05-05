@@ -37,6 +37,7 @@ namespace Samples.DancingGoat
 
         private readonly IInfoProvider<ConsentAgreementInfo> consentAgreementInfoProvider;
         private readonly IInfoProvider<BizFormInfo> bizFormInfoProvider;
+        private readonly IInfoProvider<AccountContactInfo> accountContactInfoProvider;
         private readonly IInfoProvider<ContactInfo> contactInfoProvider;
         private readonly IInfoProvider<ActivityInfo> activityInfoProvider;
 
@@ -46,16 +47,19 @@ namespace Samples.DancingGoat
         /// </summary>
         /// <param name="consentAgreementInfoProvider">Consent agreement info provider.</param>
         /// <param name="bizFormInfoProvider">BizForm info provider.</param>
+        /// <param name="accountContactInfoProvider">Account contact info provider.</param>
         /// <param name="contactInfoProvider">Contact info provider.</param>
         /// <param name="activityInfoProvider">Activity info provider.</param>
         public SampleContactPersonalDataEraser(
             IInfoProvider<ConsentAgreementInfo> consentAgreementInfoProvider,
             IInfoProvider<BizFormInfo> bizFormInfoProvider,
+            IInfoProvider<AccountContactInfo> accountContactInfoProvider,
             IInfoProvider<ContactInfo> contactInfoProvider,
             IInfoProvider<ActivityInfo> activityInfoProvider)
         {
             this.consentAgreementInfoProvider = consentAgreementInfoProvider;
             this.bizFormInfoProvider = bizFormInfoProvider;
+            this.accountContactInfoProvider = accountContactInfoProvider;
             this.contactInfoProvider = contactInfoProvider;
             this.activityInfoProvider = activityInfoProvider;
         }
@@ -74,16 +78,16 @@ namespace Samples.DancingGoat
         /// <description>Flag indicating whether contact(s) contained in <paramref name="identities"/> are to be deleted.</description>
         /// </item>
         /// <item>
+        /// <term>deleteContactFromAccounts</term>
+        /// <description>Flag indicating whether contact's association with accounts is to be deleted.</description>
+        /// </item>
+        /// <item>
         /// <term>DeleteActivities</term>
         /// <description>Flag indicating whether activities of contact are to be deleted.</description>
         /// </item>
         /// <item>
         /// <term>DeleteSubmittedFormsActivities</term>
         /// <description>Flag indicating whether form activities of contact are to be deleted.</description>
-        /// </item>
-        /// <item>
-        /// <term>DeleteProfile</term>
-        /// <description>Flag indicating whether all profile data should be deleted. When set to true, all related data will be deleted.</description>
         /// </item>
         /// </list>
         /// </remarks>
@@ -102,6 +106,8 @@ namespace Samples.DancingGoat
 
             DeleteActivities(contactIds, configuration);
 
+            DeleteContactFromAccounts(contactIds, configuration);
+
             DeleteContacts(contacts, configuration);
 
             DeleteDancingGoatSubmittedFormsData(contactEmails, contactIds, configuration);
@@ -114,7 +120,8 @@ namespace Samples.DancingGoat
         /// <remarks>Activities are deleted via bulk operation, considering the amount of activities for a contact.</remarks>
         private void DeleteSubmittedFormsActivities(ICollection<int> contactIds, IDictionary<string, object> configuration)
         {
-            if (ShouldDeleteData(configuration, "DeleteSubmittedFormsActivities"))
+            if (configuration.TryGetValue("DeleteSubmittedFormsActivities", out object deleteSubmittedFormsActivities)
+                && ValidationHelper.GetBoolean(deleteSubmittedFormsActivities, false))
             {
                 activityInfoProvider.BulkDelete(new WhereCondition().WhereEquals("ActivityType", PredefinedActivityType.BIZFORM_SUBMIT)
                                                                                    .WhereIn("ActivityContactID", contactIds));
@@ -127,7 +134,8 @@ namespace Samples.DancingGoat
         /// </summary>
         private void DeleteDancingGoatSubmittedFormsData(ICollection<string> emails, ICollection<int> contactIDs, IDictionary<string, object> configuration)
         {
-            if (ShouldDeleteData(configuration, "DeleteSubmittedFormsData"))
+            if (configuration.TryGetValue("DeleteSubmittedFormsData", out object deleteSubmittedForms)
+                && ValidationHelper.GetBoolean(deleteSubmittedForms, false))
             {
                 var consentAgreementGuids = consentAgreementInfoProvider.Get()
                     .Columns("ConsentAgreementGuid")
@@ -166,9 +174,28 @@ namespace Samples.DancingGoat
         /// <remarks>Activities are deleted via bulk operation, considering the amount of activities for a contact.</remarks>
         private void DeleteActivities(List<int> contactIds, IDictionary<string, object> configuration)
         {
-            if (ShouldDeleteData(configuration, "deleteActivities"))
+            if (configuration.TryGetValue("deleteActivities", out object deleteActivities)
+                && ValidationHelper.GetBoolean(deleteActivities, false))
             {
                 activityInfoProvider.BulkDelete(new WhereCondition().WhereIn("ActivityContactID", contactIds));
+            }
+        }
+
+
+        /// <summary>
+        /// Deletes contact from accounts based on <paramref name="configuration"/>'s <c>deleteContactFromAccounts</c> flag.
+        /// </summary>
+        private void DeleteContactFromAccounts(ICollection<int> contactIds, IDictionary<string, object> configuration)
+        {
+            if (configuration.TryGetValue("deleteContactFromAccounts", out object deleteContactFromAccounts)
+                && ValidationHelper.GetBoolean(deleteContactFromAccounts, false))
+            {
+                var accounts = accountContactInfoProvider.Get().WhereIn("ContactID", contactIds);
+
+                foreach (var account in accounts)
+                {
+                    account.Delete();
+                }
             }
         }
 
@@ -178,31 +205,13 @@ namespace Samples.DancingGoat
         /// </summary>
         private void DeleteContacts(IEnumerable<ContactInfo> contacts, IDictionary<string, object> configuration)
         {
-            if (ShouldDeleteData(configuration, "DeleteContacts"))
+            if (configuration.TryGetValue("DeleteContacts", out object deleteContacts) && ValidationHelper.GetBoolean(deleteContacts, false))
             {
                 foreach (var contact in contacts)
                 {
                     contactInfoProvider.Delete(contact);
                 }
             }
-        }
-
-
-        /// <summary>
-        /// Determines whether data should be deleted based on the specific configuration key or the global DeleteProfile flag.
-        /// </summary>
-        /// <param name="configuration">Configuration dictionary.</param>
-        /// <param name="configKey">Specific configuration key to check.</param>
-        /// <returns>True if data should be deleted, false otherwise.</returns>
-        private static bool ShouldDeleteData(IDictionary<string, object> configuration, string configKey)
-        {
-            var areAllDataToBeDeleted = configuration.TryGetValue("DeleteProfile", out object deleteProfile)
-                && ValidationHelper.GetBoolean(deleteProfile, false);
-
-            var areSpecificDataToBeDeleted = configuration.TryGetValue(configKey, out object deleteSpecific)
-                && ValidationHelper.GetBoolean(deleteSpecific, false);
-
-            return areAllDataToBeDeleted || areSpecificDataToBeDeleted;
         }
     }
 }

@@ -6,6 +6,7 @@ using Kentico.Xperience.Admin.Websites.UIPages;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -133,8 +134,16 @@ public static class HostnameCultureMappingExtensions
     /// <see cref="Type"/> via reflection at runtime and substitute the
     /// existing registration with a <see cref="DispatchProxy"/>-backed factory.
     ///
-    /// Must run after Kentico's services are registered so that we can capture
-    /// the inner descriptor.
+    /// <para>Must run after Kentico's services are registered so that we can
+    /// capture the inner descriptor.</para>
+    ///
+    /// <para>Failure modes (typically caused by an unsupported XbyK version):
+    /// missing interface type, or no existing service registration. Both are
+    /// non-fatal - the decorator is silently skipped and an
+    /// <see cref="UrlListItemsDecoratorStartupDiagnostics"/> is registered to
+    /// emit a single <c>Error</c>-level log on app start so the operator sees
+    /// the regression in the event log instead of just a quiet admin-tab
+    /// no-op.</para>
     /// </summary>
     public static IServiceCollection AddHostnameAwareUrlListItemsRetrieverDecorator(this IServiceCollection services)
     {
@@ -144,12 +153,36 @@ public static class HostnameCultureMappingExtensions
             .GetType("Kentico.Xperience.Admin.Websites.UIPages.IWebPageUrlListItemsRetriever");
         if (interfaceType == null)
         {
+            // Interface type missing - the proxy can't be wired. Most likely
+            // a future XbyK release renamed/moved the type. Defer the log to
+            // an IHostedService so it goes through the operator's normal log
+            // pipeline (and so Kentico's event log) at app start.
+            string admin = typeof(UrlListItem).Assembly.GetName().Version?.ToString() ?? "<unknown>";
+            RegisterStartupDiagnostic(
+                services,
+                $"XperienceCommunity.LanguageDomains: AddHostnameAwareUrlListItemsRetrieverDecorator could not find "
+                + $"'Kentico.Xperience.Admin.Websites.UIPages.IWebPageUrlListItemsRetriever' in the loaded admin "
+                + $"assembly (Kentico.Xperience.Admin.Websites v{admin}). Hostname rewriting on the admin URLs "
+                + $"tab will NOT be applied. This usually means the installed Kentico.Xperience.Admin version "
+                + $"renamed or removed the type. Check for an updated XperienceCommunity.LanguageDomains release.");
             return services;
         }
 
         var existing = services.LastOrDefault(d => d.ServiceType == interfaceType);
         if (existing == null)
         {
+            // Type exists but Kentico hasn't registered an implementation.
+            // Could be a Kentico-side change or wrong call ordering on the
+            // consumer's side (e.g. before AddKentico).
+            RegisterStartupDiagnostic(
+                services,
+                "XperienceCommunity.LanguageDomains: AddHostnameAwareUrlListItemsRetrieverDecorator found "
+                + "IWebPageUrlListItemsRetriever in the admin assembly but no existing service registration "
+                + "for it. Hostname rewriting on the admin URLs tab will NOT be applied. This usually means "
+                + "(a) the call order is wrong - AddHostnameAwareUrlListItemsRetrieverDecorator() must run "
+                + "AFTER builder.Services.AddKentico(...) - or (b) the installed Kentico.Xperience.Admin "
+                + "version no longer registers this service. Reorder the calls or check for an updated "
+                + "XperienceCommunity.LanguageDomains release.");
             return services;
         }
 
@@ -168,12 +201,18 @@ public static class HostnameCultureMappingExtensions
                 var proxy = (HostnameAwareUrlListItemsRetrieverProxy)createForOurInterface.Invoke(null, null)!;
                 proxy.Inner = inner;
                 proxy.Rewriter = sp.GetRequiredService<UrlListItemHostnameRewriter>();
+                proxy.Logger = sp.GetRequiredService<ILogger<HostnameAwareUrlListItemsRetrieverProxy>>();
                 return proxy;
             },
             existing.Lifetime));
 
         return services;
     }
+
+    private static void RegisterStartupDiagnostic(IServiceCollection services, string message) => services.AddSingleton<IHostedService>(sp =>
+                                                                                                           new UrlListItemsDecoratorStartupDiagnostics(
+                                                                                                               sp.GetRequiredService<ILogger<UrlListItemsDecoratorStartupDiagnostics>>(),
+                                                                                                               message));
 
     private static object MaterializeInner(IServiceProvider sp, ServiceDescriptor descriptor)
     {

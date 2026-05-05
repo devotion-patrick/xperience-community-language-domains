@@ -31,10 +31,12 @@
         </mj-section>
 
         <!-- Content -->
-        <mj-wrapper background-color="#ffffff" padding="35px 15px">
-            <EditableArea AreaIdentifier="MainContent" DefaultSectionIdentifier="@DancingGoatFullWidthEmailSection.IDENTIFIER" />
-            <EditableArea AreaIdentifier="AdditionalContent" DefaultSectionIdentifier="@DancingGoatFullWidthEmailSection.IDENTIFIER" />
-        </mj-wrapper>
+        <mj-section background-color="#ffffff" padding="35px 15px">
+            <mj-column>
+                <EditableArea AreaIdentifier="MainContent" DefaultSectionIdentifier="@DancingGoatFullWidthEmailSection.IDENTIFIER" />
+                <EditableArea AreaIdentifier="AdditionalContent" DefaultSectionIdentifier="@DancingGoatFullWidthEmailSection.IDENTIFIER" />
+            </mj-column>
+        </mj-section>
 
         <!-- Social Links -->
         <mj-section padding="20px 15px">
@@ -47,8 +49,7 @@
                                   padding="0 6px"
                                   href="@link.SocialLinkUrl"
                                   src="@link.SocialLinkIcon.FirstOrDefault().ImageFile.Url"
-                                  alt="@link.SocialLinkTitle"
-                                  title="@link.SocialLinkTitle" />
+                                  alt="@link.SocialLinkTitle" />
                     </mj-column>
                 }
             }
@@ -59,7 +60,7 @@
             <mj-column>
                 <mj-text align="center" color="#000000">
                     Don't want to receive these emails?
-                    <a href="@EmailRecipientContext?.UnsubscriptionUrl" style="text-decoration: none;" data-click-tracking="false">Unsubscribe</a>
+                    <a href="@EmailRecipientContext?.UnsubscriptionUrl" style="text-decoration: none;">Unsubscribe</a>
                 </mj-text>
             </mj-column>
         </mj-section>

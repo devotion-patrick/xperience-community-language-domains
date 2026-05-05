@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using CMS.ContentEngine;
 
 using DancingGoat;
-using DancingGoat.Commerce;
 using DancingGoat.Controllers;
 using DancingGoat.Models;
 using DancingGoat.ViewComponents;
@@ -29,7 +28,6 @@ namespace DancingGoat.Controllers
         private readonly ITaxonomyRetriever taxonomyRetriever;
         private readonly IPreferredLanguageRetriever currentLanguageRetriever;
         private readonly ProductRepository productRepository;
-        private readonly CalculationService calculationService;
 
 
         private const string PRODUCT_TAGS_FIELD_NAME = "ProductFieldTags";
@@ -38,14 +36,13 @@ namespace DancingGoat.Controllers
 
         public DancingGoatStoreController(IContentRetriever contentRetriever, NavigationService navigationService,
             ITaxonomyRetriever taxonomyRetriever, IPreferredLanguageRetriever currentLanguageRetriever,
-            ProductRepository productRepository, CalculationService calculationService)
+            ProductRepository productRepository)
         {
             this.contentRetriever = contentRetriever;
             this.navigationService = navigationService;
             this.taxonomyRetriever = taxonomyRetriever;
             this.currentLanguageRetriever = currentLanguageRetriever;
             this.productRepository = productRepository;
-            this.calculationService = calculationService;
         }
 
 
@@ -63,9 +60,7 @@ namespace DancingGoat.Controllers
 
             var productTagsTaxonomy = await taxonomyRetriever.RetrieveTaxonomy(DancingGoatTaxonomyConstants.PRODUCT_TAGS_TAXONOMY_NAME, languageName, cancellationToken);
 
-            var calculationResultItems = await calculationService.CalculateCatalogPrices(products, cancellationToken);
-
-            return View(StoreViewModel.GetViewModel(storePage, products, calculationResultItems, productPageUrls, PRODUCT_TAGS_TO_DISPLAY, productTagsTaxonomy, languageName, categoryMenu));
+            return View(StoreViewModel.GetViewModel(storePage, products, productPageUrls, PRODUCT_TAGS_TO_DISPLAY, productTagsTaxonomy, languageName, categoryMenu));
         }
 
 

@@ -36,6 +36,12 @@ namespace DancingGoat.Models
 
 
 		/// <summary>
+		/// ProductType.
+		/// </summary>
+		public string ProductType { get; set; }
+
+
+		/// <summary>
 		/// ProductCategoryTag.
 		/// </summary>
 		public IEnumerable<TagReference> ProductCategoryTag { get; set; }

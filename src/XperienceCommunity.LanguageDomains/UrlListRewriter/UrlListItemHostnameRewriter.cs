@@ -56,7 +56,12 @@ public class UrlListItemHostnameRewriter
     /// <summary>
     /// Applies hostname/prefix rewriting to a sequence of URL list items.
     /// </summary>
-    public IEnumerable<UrlListItem> Rewrite(int webPageItemId, int languageId, IEnumerable<UrlListItem> items)
+    /// <remarks>
+    /// Marked <c>virtual</c> so test doubles can intercept calls from
+    /// <see cref="HostnameAwareUrlListItemsRetrieverProxy"/> without spinning
+    /// up the full <see cref="IInfoProvider{T}"/> dependency chain.
+    /// </remarks>
+    public virtual IEnumerable<UrlListItem> Rewrite(int webPageItemId, int languageId, IEnumerable<UrlListItem> items)
     {
         if (items == null)
         {

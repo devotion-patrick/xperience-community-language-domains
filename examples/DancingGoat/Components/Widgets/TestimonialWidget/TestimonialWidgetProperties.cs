@@ -1,5 +1,4 @@
-using Kentico.PageBuilder.Web.Mvc;
-using Kentico.Xperience.Admin.Base;
+﻿using Kentico.PageBuilder.Web.Mvc;
 
 namespace DancingGoat.Widgets
 {
@@ -23,7 +22,6 @@ namespace DancingGoat.Widgets
         /// <summary>
         /// Background color CSS class.
         /// </summary>
-        [ExcludeFromAiraTranslation]
         public string ColorCssClass { get; set; } = "first-color";
     }
 }

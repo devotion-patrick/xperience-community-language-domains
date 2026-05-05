@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 
 using DancingGoat;
+using DancingGoat.Commerce;
 using DancingGoat.EmailComponents;
 using DancingGoat.Helpers.Generators;
 using DancingGoat.Models;
 
+using CMS;
 using CMS.Base;
 
 using Kentico.Activities.Web.Mvc;
@@ -36,6 +38,8 @@ using XperienceCommunity.LanguageDomains;
 using XperienceCommunity.LanguageDomains.Extensions;
 using XperienceCommunity.LanguageDomains.Middleware;
 
+[assembly: AssemblyDiscoverable]
+
 var builder = WebApplication.CreateBuilder(args);
 
 
@@ -58,7 +62,9 @@ builder.Services.AddKentico(features =>
     features.UseEmailMarketing();
     features.UseEmailStatisticsLogging();
     features.UseActivityTracking();
+#pragma warning disable KXE0002 // Commerce feature is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     features.UseCommerce();
+#pragma warning restore KXE0002 // Commerce feature is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 });
 
 builder.Services.Configure<RouteOptions>(options => options.LowercaseUrls = true);
@@ -98,7 +104,7 @@ var app = builder.Build();
 
 app.InitKentico();
 
-app.InitializeDancingGoat();
+Initialize(app.Services);
 
 app.UseStaticFiles();
 
@@ -156,7 +162,7 @@ app.Run();
 
 static void ConfigureMembershipServices(IServiceCollection services)
 {
-    services.AddIdentity<ApplicationUser, ApplicationRole>(options =>
+    services.AddIdentity<ApplicationUser, NoOpApplicationRole>(options =>
     {
         options.Password.RequireDigit = false;
         options.Password.RequireNonAlphanumeric = false;
@@ -168,18 +174,16 @@ static void ConfigureMembershipServices(IServiceCollection services)
         options.SignIn.RequireConfirmedAccount = true;
     })
         .AddUserStore<ApplicationUserStore<ApplicationUser>>()
-        .AddRoleStore<ApplicationRoleStore<ApplicationRole>>()
+        .AddRoleStore<NoOpApplicationRoleStore>()
         .AddUserManager<UserManager<ApplicationUser>>()
-        .AddRoleManager<RoleManager<ApplicationRole>>()
         .AddSignInManager<SignInManager<ApplicationUser>>();
 
     services.ConfigureApplicationCookie(options =>
     {
         options.ExpireTimeSpan = TimeSpan.FromDays(14);
         options.SlidingExpiration = true;
-        options.LoginPath = new PathString("/account/login");
-        options.AccessDeniedPath = new PathString("/error/403");
-        options.Events.OnRedirectToLogin = ctx =>
+        options.AccessDeniedPath = new PathString("/account/login");
+        options.Events.OnRedirectToAccessDenied = ctx =>
         {
             var factory = ctx.HttpContext.RequestServices.GetRequiredService<IUrlHelperFactory>();
             var urlHelper = factory.GetUrlHelper(new ActionContext(ctx.HttpContext, new RouteData(ctx.HttpContext.Request.RouteValues), new ActionDescriptor()));
@@ -203,6 +207,13 @@ static void ConfigureMembershipServices(IServiceCollection services)
     });
 
     services.AddAuthorization();
+}
+
+
+static void Initialize(IServiceProvider serviceProvider)
+{
+    var contentItemEventHandlers = serviceProvider.GetRequiredService<ContentItemEventHandlers>();
+    contentItemEventHandlers.Initialize();
 }
 
 

@@ -1,68 +1,81 @@
-﻿using System.Threading;
+﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 
+using CMS.Commerce;
 using CMS.DataEngine;
-using CMS.Helpers;
 
+#pragma warning disable KXE0002 // Commerce feature is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 namespace DancingGoat.Commerce;
 
 /// <summary>
 /// Service responsible for generating unique order numbers.
 /// </summary>
-public sealed class OrderNumberGenerator
+public sealed partial class OrderNumberGenerator
 {
-    private const string SEQUENCE_NAME = "OrderNumberSequence";
+    private readonly IInfoProvider<OrderInfo> orderInfoProvider;
+
+
+    public OrderNumberGenerator(IInfoProvider<OrderInfo> orderInfoProvider)
+    {
+        this.orderInfoProvider = orderInfoProvider;
+    }
 
 
     /// <summary>
-    /// Generates a new unique order number using the underlying SQL sequence.
-    /// The format is <c>ORD#NNNNNN</c>, where <c>NNNNNN</c> is a zero-padded
-    /// sequential value retrieved from the database.
+    /// Generates a new unique order number in the format "YYYY-N", where N is the sequential number for the year.
     /// </summary>
-    /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
-    /// <returns>
-    /// A task that represents the asynchronous operation.
-    /// The task result contains the generated order number string.
-    /// </returns>
+    /// <param name="cancellationToken">Cancellation token for async operation.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains the generated order number.</returns>
     public async Task<string> GenerateOrderNumber(CancellationToken cancellationToken)
     {
-        var sequence = await GetNextOrderSequenceNumber(cancellationToken);
-        return $"ORD#{sequence:D6}";
+        var actualYear = DateTime.Now.Year;
+        var beginningOfTheYear = new DateTime(actualYear, 1, 1);
+
+        var lastOrderNumber = await orderInfoProvider.Get()
+                                                     .WhereGreaterOrEquals(nameof(OrderInfo.OrderCreatedWhen), beginningOfTheYear)
+                                                     .OrderByDescending(nameof(OrderInfo.OrderCreatedWhen))
+                                                     .TopN(1)
+                                                     .Column(nameof(OrderInfo.OrderNumber))
+                                                     .GetScalarResultAsync<string>(cancellationToken: cancellationToken);
+
+        var orderSequenceNumber = GetNextOrderSequenceNumber(lastOrderNumber);
+
+        return FormatOrderNumber(actualYear, orderSequenceNumber);
     }
 
 
     /// <summary>
-    /// Retrieves the next value from the configured SQL sequence.
-    /// If the sequence does not exist in the database, it will be created automatically
-    /// before retrieving the next value.
+    /// Formats the order number using the given year and sequence number.
     /// </summary>
-    /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
-    /// <returns>
-    /// A task that represents the asynchronous operation.
-    /// The task result contains the next numeric value from the sequence.
-    /// </returns>
-    private static async Task<long> GetNextOrderSequenceNumber(CancellationToken cancellationToken)
+    /// <param name="year">The year to include in the order number.</param>
+    /// <param name="orderSequenceNumber">The sequential number for the given year.</param>
+    /// <returns>The formatted order number string.</returns>
+    private static string FormatOrderNumber(int year, int orderSequenceNumber) => $"{year}-{orderSequenceNumber}";
+
+
+    /// <summary>
+    /// Parses the last order number and calculates the next sequential number.
+    /// </summary>
+    /// <param name="orderNumber">The last generated order number in the format "YYYY-N".</param>
+    /// <returns>The next sequence number for the current year.</returns>
+    private static int GetNextOrderSequenceNumber(string orderNumber)
     {
-        var query = $"""
-                         IF NOT EXISTS (SELECT * FROM sys.sequences WHERE name = N'{SEQUENCE_NAME}')
-                         BEGIN
-                             CREATE SEQUENCE [{SEQUENCE_NAME}]
-                                 AS BIGINT
-                                 START WITH 1
-                                 INCREMENT BY 1
-                                 MINVALUE 1
-                                 NO CYCLE
-                                 CACHE 100;
-                         END;
+        var match = LastNumberRegex().Match(orderNumber ?? string.Empty);
+        var parsedSequenceNumber = match.Success && int.TryParse(match.Groups[1].Value, out var parsedNumber)
+            ? parsedNumber
+            : 0;
 
-                         SELECT NEXT VALUE FOR [{SEQUENCE_NAME}];
-                     """;
-
-        var scalar = await ConnectionHelper.ExecuteScalarAsync(query,
-            null,
-            QueryTypeEnum.SQLQuery,
-            cancellationToken);
-
-        return ValidationHelper.GetLong(scalar, 0);
+        return parsedSequenceNumber + 1;
     }
+
+
+    /// <summary>
+    /// Regex to extract the numeric sequence from the end of the order number (e.g., "2025-12" → 12).
+    /// </summary>
+    /// <returns>The compiled regex instance.</returns>
+    [GeneratedRegex(@"-(\d+)$")]
+    private static partial Regex LastNumberRegex();
 }
+#pragma warning restore KXE0002 // Commerce feature is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.

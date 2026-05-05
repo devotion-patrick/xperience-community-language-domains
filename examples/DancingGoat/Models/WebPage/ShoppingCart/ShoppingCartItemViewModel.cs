@@ -1,5 +1,3 @@
-﻿using DancingGoat.Commerce;
+﻿namespace DancingGoat.Models;
 
-namespace DancingGoat.Models;
-
-public record ShoppingCartItemViewModel(int ContentItemId, string Name, string ImageUrl, string DetailUrl, int Quantity, decimal UnitPrice, decimal TotalPrice, decimal ListPrice, DancingGoatCatalogPromotionCandidate AppliedPromotion, int? VariantId);
+public record ShoppingCartItemViewModel(int ContentItemId, string Name, string ImageUrl, string DetailUrl, int Quantity, decimal UnitPrice, decimal TotalPrice, int? VariantId);

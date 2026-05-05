@@ -2,7 +2,6 @@
 using System.Linq;
 using System.Threading.Tasks;
 
-using CMS.DataEngine;
 using CMS.Websites;
 
 using DancingGoat.Models;
@@ -65,8 +64,8 @@ namespace DancingGoat.ViewComponents
                     LinkedItemsMaxLevel = 1,
                     PathMatch = PathMatch.Children(articlesSection.SystemFields.WebPageItemTreePath)
                 },
-                query => query.TopN(ARTICLES_PER_VIEW).OrderBy(OrderByColumn.Desc(nameof(ArticlePage.ArticlePagePublishDate))),
-                new RetrievalCacheSettings($"TopN_{ARTICLES_PER_VIEW}_OrderBy_Desc_{nameof(ArticlePage.ArticlePagePublishDate)}"),
+                query => query.TopN(ARTICLES_PER_VIEW),
+                new RetrievalCacheSettings($"TopN_{ARTICLES_PER_VIEW}"),
                 HttpContext.RequestAborted
             );
         }

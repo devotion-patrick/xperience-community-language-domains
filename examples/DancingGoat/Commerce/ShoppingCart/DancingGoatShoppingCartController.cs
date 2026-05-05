@@ -17,8 +17,8 @@ using Kentico.Commerce.Web.Mvc;
 using Kentico.Content.Web.Mvc.Routing;
 
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Localization;
 
+#pragma warning disable KXE0002 // Commerce feature is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 [assembly: RegisterWebPageRoute(ShoppingCart.CONTENT_TYPE_NAME, typeof(DancingGoatShoppingCartController), WebsiteChannelNames = new[] { DancingGoatConstants.WEBSITE_CHANNEL_NAME })]
 
 namespace DancingGoat.Commerce;
@@ -28,175 +28,99 @@ namespace DancingGoat.Commerce;
 /// </summary>
 public sealed class DancingGoatShoppingCartController : Controller
 {
-    private readonly ICurrentShoppingCartRetriever currentShoppingCartRetriever;
-    private readonly ICurrentShoppingCartCreator currentShoppingCartCreator;
+    private readonly ICurrentShoppingCartService currentShoppingCartService;
     private readonly ProductVariantsExtractor productVariantsExtractor;
     private readonly WebPageUrlProvider webPageUrlProvider;
     private readonly ProductRepository productRepository;
-    private readonly PromotionCouponRepository promotionCouponRepository;
-    private readonly CalculationService calculationService;
-    private readonly UpsellOrderDiscountService upsellOrderDiscountService;
-    private readonly IStringLocalizer<SharedResources> localizer;
-    private readonly IPriceFormatter priceFormatter;
-
-    public const string UPDATE_ITEM_QUANTITY = "UpdateItemQuantity";
-    public const string REMOVE_ITEM = "RemoveItem";
-
-    public const string ADD_COUPON_CODE = "AddCoupon";
-    public const string REMOVE_COUPON_CODE = "RemoveCoupon";
-
 
     public DancingGoatShoppingCartController(
-        ICurrentShoppingCartRetriever currentShoppingCartRetriever,
-        ICurrentShoppingCartCreator currentShoppingCartCreator,
+        ICurrentShoppingCartService currentShoppingCartService,
         ProductVariantsExtractor productVariantsExtractor,
         WebPageUrlProvider webPageUrlProvider,
-        ProductRepository productRepository,
-        PromotionCouponRepository promotionCouponRepository,
-        CalculationService calculationService,
-        UpsellOrderDiscountService upsellOrderDiscountService,
-        IStringLocalizer<SharedResources> localizer,
-        IPriceFormatter priceFormatter)
+        ProductRepository productRepository)
     {
-        this.currentShoppingCartRetriever = currentShoppingCartRetriever;
-        this.currentShoppingCartCreator = currentShoppingCartCreator;
+        this.currentShoppingCartService = currentShoppingCartService;
         this.productVariantsExtractor = productVariantsExtractor;
         this.webPageUrlProvider = webPageUrlProvider;
         this.productRepository = productRepository;
-        this.promotionCouponRepository = promotionCouponRepository;
-        this.calculationService = calculationService;
-        this.upsellOrderDiscountService = upsellOrderDiscountService;
-        this.localizer = localizer;
-        this.priceFormatter = priceFormatter;
     }
 
 
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
     {
-        var shoppingCart = await currentShoppingCartRetriever.Get(cancellationToken);
+        var shoppingCart = await currentShoppingCartService.Get(cancellationToken);
         if (shoppingCart == null)
         {
-            return View(new ShoppingCartViewModel(Enumerable.Empty<ShoppingCartItemViewModel>(), 0, 0, 0, 0, null, Enumerable.Empty<CouponCodeViewModel>()));
+            return View(new ShoppingCartViewModel(new List<ShoppingCartItemViewModel>(), 0));
         }
 
         var shoppingCartData = shoppingCart.GetShoppingCartDataModel();
 
-        var products = await productRepository.GetProductsByIds(shoppingCartData.Items.Select(item => item.ProductIdentifier.Identifier), cancellationToken);
+        var products = await productRepository.GetProductsByIds(shoppingCartData.Items.Select(item => item.ContentItemId), cancellationToken);
+
         var productPageUrls = await productRepository.GetProductPageUrls(products.Cast<IContentItemFieldsSource>().Select(p => p.SystemFields.ContentItemID), cancellationToken);
 
-        var calculationResult = await calculationService.CalculateShoppingCart(shoppingCartData, cancellationToken);
-        var totalWithoutShippingAndTax = PriceCalculationTotalsCalculator.GetTotalWithoutShippingAndTax(calculationResult);
-        var subtotal = PriceCalculationTotalsCalculator.GetSubtotal(calculationResult);
-        var subtotalAfterLineDiscount = PriceCalculationTotalsCalculator.GetSubtotalAfterLineDiscount(calculationResult);
-        var totalDiscount = PriceCalculationTotalsCalculator.GetTotalDiscountAmount(calculationResult);
-
-        var orderDiscountText = await GetOrderDiscountInfoText(calculationResult, subtotalAfterLineDiscount, cancellationToken);
+        var totalPrice = CalculationService.CalculateTotalPrice(shoppingCartData, products);
 
         return View(new ShoppingCartViewModel(
             shoppingCartData.Items.Select(item =>
             {
-                var product = products.FirstOrDefault(product => (product as IContentItemFieldsSource)?.SystemFields.ContentItemID == item.ProductIdentifier.Identifier);
+                var product = products.FirstOrDefault(product => (product as IContentItemFieldsSource)?.SystemFields.ContentItemID == item.ContentItemId);
                 var variantValues = product == null ? null : productVariantsExtractor.ExtractVariantsValue(product);
-                var calculationItem = calculationResult.Items.FirstOrDefault(i => i.ProductIdentifier.Identifier == item.ProductIdentifier.Identifier && i.ProductIdentifier.VariantIdentifier == item.ProductIdentifier.VariantIdentifier);
-
-                productPageUrls.TryGetValue(item.ProductIdentifier.Identifier, out var pageUrl);
+                productPageUrls.TryGetValue(item.ContentItemId, out var pageUrl);
 
                 return product == null
                     ? null
                     : new ShoppingCartItemViewModel(
-                        item.ProductIdentifier.Identifier,
-                        FormatProductName(product.ProductFieldName, variantValues, item.ProductIdentifier.VariantIdentifier),
+                        item.ContentItemId,
+                        FormatProductName(product.ProductFieldName, variantValues, item.VariantId),
                         product.ProductFieldImage.FirstOrDefault()?.ImageFile.Url,
                         pageUrl,
                         item.Quantity,
-                        calculationItem.LineSubtotalAfterLineDiscount / calculationItem.Quantity,
-                        calculationItem?.LineSubtotalAfterLineDiscount ?? product.ProductFieldPrice,
-                        product.ProductFieldPrice * item.Quantity,
-                        calculationItem.PromotionData.CatalogPromotionCandidates.FirstOrDefault(c => c.Applied)?.PromotionCandidate as DancingGoatCatalogPromotionCandidate,
-                        item.ProductIdentifier.VariantIdentifier);
+                        product.ProductFieldPrice,
+                        item.Quantity * product.ProductFieldPrice,
+                        item.VariantId);
             })
             .Where(x => x != null)
             .ToList(),
-            totalWithoutShippingAndTax,
-            subtotal,
-            calculationResult.TotalTax,
-            totalDiscount,
-            orderDiscountText,
-            GetCouponsViewModel(shoppingCartData.CouponCodes, calculationResult)));
+            totalPrice));
     }
 
 
     [HttpPost]
-    [Route("/ShoppingCart/HandleUpdateRemove")]
-    public async Task<IActionResult> HandleUpdateRemove(int contentItemId, int quantity, int? variantId, string action, string languageName, CancellationToken cancellationToken)
+    [Route("/ShoppingCart/HandleAddRemove")]
+    public async Task<IActionResult> HandleAddRemove(int contentItemId, int quantity, int? variantId, string action, string languageName)
     {
-        if (string.Equals(action, REMOVE_ITEM, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(action, "Remove", StringComparison.OrdinalIgnoreCase))
+        {
+            quantity *= -1;
+        }
+        else if (action == "RemoveAll")
         {
             quantity = 0;
         }
 
-        var shoppingCart = await GetCurrentShoppingCart(cancellationToken);
+        var shoppingCart = await GetCurrentShoppingCart();
 
-        UpdateQuantity(shoppingCart, new ProductVariantIdentifier { Identifier = contentItemId, VariantIdentifier = variantId }, quantity);
+        UpdateQuantity(shoppingCart, contentItemId, quantity, variantId, setAbsoluteValue: new[] { "RemoveAll", "Update" }.Contains(action));
 
         shoppingCart.Update();
 
-        return await RedirectToShoppingCartPage(languageName, cancellationToken);
+        return Redirect(await webPageUrlProvider.ShoppingCartPageUrl(languageName));
     }
 
 
     [HttpPost]
     [Route("/ShoppingCart/Add")]
-    public async Task<IActionResult> Add(int contentItemId, int quantity, int? variantId, string languageName, CancellationToken cancellationToken)
+    public async Task<IActionResult> Add(int contentItemId, int quantity, int? variantId, string languageName)
     {
-        var shoppingCart = await GetCurrentShoppingCart(cancellationToken);
+        var shoppingCart = await GetCurrentShoppingCart();
 
-        UpdateQuantity(shoppingCart, new ProductVariantIdentifier { Identifier = contentItemId, VariantIdentifier = variantId }, quantity);
+        UpdateQuantity(shoppingCart, contentItemId, quantity, variantId);
 
         shoppingCart.Update();
 
-        return await RedirectToShoppingCartPage(languageName, cancellationToken);
-    }
-
-
-    [HttpPost]
-    [Route("/ShoppingCart/HandleCouponCode")]
-    public async Task<IActionResult> HandleCouponCode(string couponCode, string action, string languageName, CancellationToken cancellationToken)
-    {
-        if (!string.IsNullOrWhiteSpace(couponCode))
-        {
-            var shoppingCart = await GetCurrentShoppingCart(cancellationToken);
-            var shoppingCartData = shoppingCart.GetShoppingCartDataModel();
-
-            // Normalize the promotion code (trim for comparison)
-            var normalizedCode = couponCode.Trim();
-
-            if (string.Equals(action, ADD_COUPON_CODE, StringComparison.OrdinalIgnoreCase))
-            {
-                bool codeAlreadyApplied = shoppingCartData.CouponCodes.Any(c => string.Equals(c, normalizedCode, StringComparison.OrdinalIgnoreCase));
-                bool codeExists = await promotionCouponRepository.PromotionCouponExists(normalizedCode, cancellationToken);
-
-                if (!codeAlreadyApplied && codeExists)
-                {
-                    // Add the new coupon code if it's not already present
-                    shoppingCartData.CouponCodes.Add(normalizedCode);
-                }
-            }
-            else if (string.Equals(action, REMOVE_COUPON_CODE, StringComparison.OrdinalIgnoreCase))
-            {
-                // Remove the coupon code if it's present
-                var codeToRemove = shoppingCartData.CouponCodes.FirstOrDefault(c => string.Equals(c, normalizedCode, StringComparison.OrdinalIgnoreCase));
-                if (codeToRemove != null)
-                {
-                    shoppingCartData.CouponCodes.Remove(codeToRemove);
-                }
-            }
-
-            shoppingCart.StoreShoppingCartDataModel(shoppingCartData);
-            shoppingCart.Update();
-        }
-
-        return await RedirectToShoppingCartPage(languageName, cancellationToken);
+        return Redirect(await webPageUrlProvider.ShoppingCartPageUrl(languageName));
     }
 
 
@@ -211,14 +135,14 @@ public sealed class DancingGoatShoppingCartController : Controller
     /// <summary>
     /// Updates the quantity of the product in the shopping cart.
     /// </summary>
-    private static void UpdateQuantity(ShoppingCartInfo shoppingCart, ProductVariantIdentifier productIdentifier, int quantity)
+    private static void UpdateQuantity(ShoppingCartInfo shoppingCart, int contentItemId, int quantity, int? variantId, bool setAbsoluteValue = false)
     {
         var shoppingCartData = shoppingCart.GetShoppingCartDataModel();
 
-        var productItem = shoppingCartData.Items.FirstOrDefault(x => x.ProductIdentifier == productIdentifier);
+        var productItem = shoppingCartData.Items.FirstOrDefault(x => x.ContentItemId == contentItemId && x.VariantId == variantId);
         if (productItem != null)
         {
-            productItem.Quantity = quantity;
+            productItem.Quantity = setAbsoluteValue ? quantity : Math.Max(0, productItem.Quantity + quantity);
             if (productItem.Quantity == 0)
             {
                 shoppingCartData.Items.Remove(productItem);
@@ -226,11 +150,7 @@ public sealed class DancingGoatShoppingCartController : Controller
         }
         else if (quantity > 0)
         {
-            shoppingCartData.Items.Add(new ShoppingCartDataItem
-            {
-                ProductIdentifier = productIdentifier,
-                Quantity = quantity
-            });
+            shoppingCartData.Items.Add(new ShoppingCartDataItem { ContentItemId = contentItemId, Quantity = quantity, VariantId = variantId });
         }
 
         shoppingCart.StoreShoppingCartDataModel(shoppingCartData);
@@ -240,73 +160,13 @@ public sealed class DancingGoatShoppingCartController : Controller
     /// <summary>
     /// Gets the current shopping cart or creates a new one if it does not exist.
     /// </summary>
-    private async Task<ShoppingCartInfo> GetCurrentShoppingCart(CancellationToken cancellationToken)
+    private async Task<ShoppingCartInfo> GetCurrentShoppingCart()
     {
-        var shoppingCart = await currentShoppingCartRetriever.Get(cancellationToken);
+        var shoppingCart = await currentShoppingCartService.Get();
 
-        shoppingCart ??= await currentShoppingCartCreator.Create(cancellationToken);
+        shoppingCart ??= await currentShoppingCartService.Create(null);
 
         return shoppingCart;
     }
-
-
-    private async Task<RedirectResult> RedirectToShoppingCartPage(string languageName, CancellationToken cancellationToken)
-    {
-        return Redirect(await webPageUrlProvider.ShoppingCartPageUrl(languageName, cancellationToken));
-    }
-
-
-    private IEnumerable<CouponCodeViewModel> GetCouponsViewModel(IEnumerable<string> couponCodes, DancingGoatPriceCalculationResult calculationResult)
-    {
-        return couponCodes.Select(code => new CouponCodeViewModel
-        {
-            Code = code,
-            Status = GetCouponStatus(code, calculationResult)
-        });
-
-
-        // Returns the status of the coupon code in the shopping cart context.
-        CouponCodeStatus GetCouponStatus(string couponCode, DancingGoatPriceCalculationResult calculationResult)
-        {
-            foreach (var item in calculationResult.Items)
-            {
-                var catalogCandidate = item.PromotionData.CatalogPromotionCandidates.FirstOrDefault(
-                    c => c.CouponCode?.Equals(couponCode, StringComparison.OrdinalIgnoreCase) ?? false);
-
-                if (catalogCandidate != null)
-                {
-                    return catalogCandidate.Applied ? CouponCodeStatus.Applied : CouponCodeStatus.Applicable;
-                }
-            }
-
-            var orderCandidate = calculationResult.PromotionData.OrderPromotionCandidates.FirstOrDefault(
-                c => c.CouponCode?.Equals(couponCode, StringComparison.OrdinalIgnoreCase) ?? false);
-
-            if (orderCandidate != null)
-            {
-                return orderCandidate.Applied ? CouponCodeStatus.Applied : CouponCodeStatus.Applicable;
-            }
-
-            return CouponCodeStatus.NotApplicable;
-        }
-    }
-
-
-    private async Task<string> GetOrderDiscountInfoText(DancingGoatPriceCalculationResult calculationResult, decimal subtotalAfterLineDiscount, CancellationToken cancellationToken)
-    {
-        var text = await upsellOrderDiscountService.GetUpsellOrderDiscountMessage(subtotalAfterLineDiscount, cancellationToken);
-
-        if (string.IsNullOrEmpty(text))
-        {
-            var appliedOrderDiscount = calculationResult.PromotionData.OrderPromotionCandidates.FirstOrDefault(c => c.Applied);
-            if (appliedOrderDiscount != null)
-            {
-                var orderDiscountMessageSource = localizer["You qualified for a {0} discount. Enjoy your discount!"];
-                var priceString = priceFormatter.Format(appliedOrderDiscount.PromotionCandidate.OrderDiscountAmount, new PriceFormatContext());
-                text = string.Format(orderDiscountMessageSource, priceString);
-            }
-        }
-
-        return text;
-    }
 }
+#pragma warning restore KXE0002 // Commerce feature is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.

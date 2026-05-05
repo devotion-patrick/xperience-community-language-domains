@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using CMS;
 using CMS.Activities;
 using CMS.Base;
-using CMS.Commerce;
 using CMS.ContactManagement;
 using CMS.Core;
 using CMS.DataEngine;
@@ -17,9 +16,6 @@ using CMS.OnlineForms;
 using DancingGoat.Helpers.Generator;
 
 using Kentico.Web.Mvc;
-
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 
 using Samples.DancingGoat;
 
@@ -34,6 +30,17 @@ namespace Samples.DancingGoat
     {
         private const string DATA_PROTECTION_SAMPLES_ENABLED_SETTINGS_KEY_NAME = "DataProtectionSamplesEnabled";
 
+        private IInfoProvider<ContactInfo> contactInfoProvider;
+        private IMemberInfoProvider memberInfoProvider;
+        private IInfoProvider<ConsentAgreementInfo> consentAgreementInfoProvider;
+        private IInfoProvider<BizFormInfo> bizFormInfoProvider;
+        private IInfoProvider<AccountContactInfo> accountContactInfoProvider;
+        private IInfoProvider<SettingsKeyInfo> settingsKeyInfoProvider;
+        private IInfoProvider<ActivityInfo> activityInfoProvider;
+        private IInfoProvider<CountryInfo> countryInfoProvider;
+        private IInfoProvider<StateInfo> stateInfoProvider;
+        private IInfoProvider<AccountInfo> accountInfoProvider;
+
 
         /// <summary>
         /// Initializes a new instance of the <see cref="DancingGoatSamplesModule"/> class.
@@ -46,11 +53,22 @@ namespace Samples.DancingGoat
         /// <summary>
         /// Initializes the module.
         /// </summary>
-        protected override void OnInit(ModuleInitParameters parameters)
+        protected override void OnInit()
         {
-            base.OnInit(parameters);
+            base.OnInit();
 
-            InitializeSamples(parameters);
+            contactInfoProvider = Service.Resolve<IInfoProvider<ContactInfo>>();
+            memberInfoProvider = Service.Resolve<IMemberInfoProvider>();
+            consentAgreementInfoProvider = Service.Resolve<IInfoProvider<ConsentAgreementInfo>>();
+            bizFormInfoProvider = Service.Resolve<IInfoProvider<BizFormInfo>>();
+            accountContactInfoProvider = Service.Resolve<IInfoProvider<AccountContactInfo>>();
+            settingsKeyInfoProvider = Service.Resolve<IInfoProvider<SettingsKeyInfo>>();
+            activityInfoProvider = Service.Resolve<IInfoProvider<ActivityInfo>>();
+            countryInfoProvider = Service.Resolve<IInfoProvider<CountryInfo>>();
+            stateInfoProvider = Service.Resolve<IInfoProvider<StateInfo>>();
+            accountInfoProvider = Service.Resolve<IInfoProvider<AccountInfo>>();
+
+            InitializeSamples();
         }
 
 
@@ -58,14 +76,12 @@ namespace Samples.DancingGoat
         /// Registers sample personal data collectors immediately or attaches an event handler to register the collectors upon dedicated key insertion.
         /// Disabling or toggling registration of the sample collectors is not supported.
         /// </summary>
-        private static void InitializeSamples(ModuleInitParameters parameters)
+        private void InitializeSamples()
         {
-            var settingsKeyInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<SettingsKeyInfo>>();
-
             var dataProtectionSamplesEnabledSettingsKey = settingsKeyInfoProvider.Get(DATA_PROTECTION_SAMPLES_ENABLED_SETTINGS_KEY_NAME);
             if (dataProtectionSamplesEnabledSettingsKey?.KeyValue.ToBoolean(false) ?? false)
             {
-                RegisterDataProtectionSample(parameters);
+                RegisterSamples();
             }
             else
             {
@@ -75,139 +91,51 @@ namespace Samples.DancingGoat
                     if (settingKey.KeyName.Equals(DATA_PROTECTION_SAMPLES_ENABLED_SETTINGS_KEY_NAME, StringComparison.OrdinalIgnoreCase)
                         && settingKey.KeyValue.ToBoolean(false))
                     {
-                        RegisterDataProtectionSample(parameters);
+                        RegisterSamples();
                     }
                 };
             }
         }
 
 
-        private static void RegisterDataProtectionSample(ModuleInitParameters parameters)
+        internal void RegisterSamples()
         {
-            if (parameters.Services.GetRequiredService<IOptions<CustomerDataPlatformOptions>>().Value.Enabled)
-            {
-                RegisterProfileSample(parameters);
-                return;
-            }
-
-            RegisterContactSample(parameters);
-        }
-
-
-        private static void RegisterContactSample(ModuleInitParameters parameters)
-        {
-            var contactInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<ContactInfo>>();
-            var memberInfoProvider = parameters.Services.GetRequiredService<IMemberInfoProvider>();
-            var activityInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<ActivityInfo>>();
-            var countryInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<CountryInfo>>();
-            var stateInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<StateInfo>>();
-            var consentAgreementInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<ConsentAgreementInfo>>();
-            var bizFormInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<BizFormInfo>>();
-
             IdentityCollectorRegister.Instance.Add(new SampleContactInfoIdentityCollector(contactInfoProvider));
             IdentityCollectorRegister.Instance.Add(new SampleMemberInfoIdentityCollector(memberInfoProvider));
 
-            PersonalDataCollectorRegister.Instance.Add(new SampleContactDataCollector(activityInfoProvider, countryInfoProvider, stateInfoProvider, consentAgreementInfoProvider, bizFormInfoProvider));
+            PersonalDataCollectorRegister.Instance.Add(new SampleContactDataCollector(activityInfoProvider, countryInfoProvider, stateInfoProvider, consentAgreementInfoProvider,
+                accountContactInfoProvider, accountInfoProvider, bizFormInfoProvider));
             PersonalDataCollectorRegister.Instance.Add(new SampleMemberDataCollector());
 
-            PersonalDataEraserRegister.Instance.Add(new SampleContactPersonalDataEraser(consentAgreementInfoProvider, bizFormInfoProvider, contactInfoProvider, activityInfoProvider));
+            PersonalDataEraserRegister.Instance.Add(new SampleContactPersonalDataEraser(consentAgreementInfoProvider, bizFormInfoProvider, accountContactInfoProvider, contactInfoProvider, activityInfoProvider));
             PersonalDataEraserRegister.Instance.Add(new SampleMemberPersonalDataEraser(memberInfoProvider));
 
-            RegisterConsentRevokeHandler(parameters);
+            RegisterConsentRevokeHandler();
         }
 
 
-        private static void RegisterProfileSample(ModuleInitParameters parameters)
-        {
-            RegisterProfileIdentityCollector(parameters);
-            RegisterProfileDataCollector(parameters);
-            RegisterProfileDataEraser(parameters);
-
-            RegisterConsentRevokeHandler(parameters);
-        }
-
-
-        private static void RegisterProfileIdentityCollector(ModuleInitParameters parameters)
-        {
-            var profileInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<ProfileInfo>>();
-            var profileReferenceInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<ProfileReferenceInfo>>();
-            var contactInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<ContactInfo>>();
-            var customerInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<CustomerInfo>>();
-            var memberInfoProvider = parameters.Services.GetRequiredService<IMemberInfoProvider>();
-            var identityCollector = new SampleProfileInfoIdentityCollector(profileInfoProvider, profileReferenceInfoProvider,
-                contactInfoProvider, customerInfoProvider, memberInfoProvider);
-
-            IdentityCollectorRegister.Instance.Add(identityCollector);
-        }
-
-
-        private static void RegisterProfileDataCollector(ModuleInitParameters parameters)
-        {
-            var activityInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<ActivityInfo>>();
-            var countryInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<CountryInfo>>();
-            var stateInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<StateInfo>>();
-            var consentAgreementInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<ConsentAgreementInfo>>();
-            var bizFormInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<BizFormInfo>>();
-            var customerAddressInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<CustomerAddressInfo>>();
-            var orderInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<OrderInfo>>();
-            var orderItemInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<OrderItemInfo>>();
-            var orderAddressInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<OrderAddressInfo>>();
-
-            var dataCollector = new SampleProfileDataCollector(activityInfoProvider, countryInfoProvider, stateInfoProvider, consentAgreementInfoProvider,
-                bizFormInfoProvider, customerAddressInfoProvider, orderInfoProvider, orderItemInfoProvider, orderAddressInfoProvider);
-
-            PersonalDataCollectorRegister.Instance.Add(dataCollector);
-        }
-
-
-        private static void RegisterProfileDataEraser(ModuleInitParameters parameters)
-        {
-            var consentAgreementInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<ConsentAgreementInfo>>();
-            var bizFormInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<BizFormInfo>>();
-            var activityInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<ActivityInfo>>();
-            var contactInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<ContactInfo>>();
-            var memberInfoProvider = parameters.Services.GetRequiredService<IMemberInfoProvider>();
-            var profileInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<ProfileInfo>>();
-
-            var profilePersonalDataEraser = new SampleProfilePersonalDataEraser(
-                consentAgreementInfoProvider,
-                bizFormInfoProvider,
-                contactInfoProvider,
-                activityInfoProvider,
-                memberInfoProvider,
-                profileInfoProvider);
-
-            PersonalDataEraserRegister.Instance.Add(profilePersonalDataEraser);
-        }
-
-
-        private static void DeleteContactActivities(ContactInfo contact, ModuleInitParameters parameters)
+        internal void DeleteContactActivities(ContactInfo contact)
         {
             var configuration = new Dictionary<string, object>
             {
                 { "deleteActivities", true }
             };
 
-            var contactInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<ContactInfo>>();
-            var activityInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<ActivityInfo>>();
-            var consentAgreementInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<ConsentAgreementInfo>>();
-            var bizFormInfoProvider = parameters.Services.GetRequiredService<IInfoProvider<BizFormInfo>>();
-
-            new SampleContactPersonalDataEraser(consentAgreementInfoProvider, bizFormInfoProvider, contactInfoProvider, activityInfoProvider)
-                    .Erase([contact], configuration);
+            new SampleContactPersonalDataEraser(consentAgreementInfoProvider, bizFormInfoProvider, accountContactInfoProvider, contactInfoProvider, activityInfoProvider)
+                    .Erase(new[] { contact }, configuration);
         }
 
 
-        private static void RegisterConsentRevokeHandler(ModuleInitParameters parameters)
+        private void RegisterConsentRevokeHandler()
         {
             DataProtectionEvents.RevokeConsentAgreement.Execute += (sender, args) =>
             {
                 if (args.Consent.ConsentName.Equals(TrackingConsentGenerator.CONSENT_NAME, StringComparison.Ordinal))
                 {
-                    DeleteContactActivities(args.Contact, parameters);
+                    DeleteContactActivities(args.Contact);
 
                     // Remove cookies used for contact tracking
-                    var cookieAccessor = parameters.Services.GetRequiredService<ICookieAccessor>();
+                    var cookieAccessor = Service.Resolve<ICookieAccessor>();
 
 #pragma warning disable CS0618 // CookieName is obsolete
                     cookieAccessor.Remove(CookieName.CurrentContact);
@@ -216,7 +144,7 @@ namespace Samples.DancingGoat
 
 
                     // Set the cookie level to default
-                    var cookieLevelProvider = parameters.Services.GetRequiredService<ICurrentCookieLevelProvider>();
+                    var cookieLevelProvider = Service.Resolve<ICurrentCookieLevelProvider>();
                     cookieLevelProvider.SetCurrentCookieLevel(cookieLevelProvider.GetDefaultCookieLevel());
                 }
             };

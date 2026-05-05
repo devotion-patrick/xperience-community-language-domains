@@ -1,14 +1,12 @@
 ﻿@model DancingGoat.InlineEditors.TextEditorViewModel
 
-@inject Kentico.Builder.Web.Mvc.IAdminBuildersLocalizationService localizationService
-
 @using (Html.Kentico().BeginInlineEditor("text-editor", Model.PropertyName,
-new
-{
-    @class = "text-editor",
-    contenteditable = "true",
-    data_placeholder_text = localizationService.LocalizeString(Model.PlaceholderText)
-}))
+    new
+    {
+        @class = "text-editor",
+        contenteditable = "true",
+        data_placeholder_text = Model.PlaceholderText
+    }))
 {
     @Model.Text
 }

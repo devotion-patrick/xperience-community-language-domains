@@ -327,7 +327,7 @@ Whether or not it rewrites, the middleware also stashes the `HostLanguageMatch` 
 The admin URLs tab is special. It does **not** use `IWebPageUrlRetriever` to build the displayed URL strings - it talks to `Kentico.Xperience.Admin.Websites.UIPages.IWebPageUrlListItemsRetriever`, which constructs URLs from `WebPageUrlPathInfo` + `IWebsiteChannelDomainProvider` directly. To make the admin reflect the same hostname/prefix rewriting:
 - `IWebPageUrlListItemsRetriever` is **`internal`** to Kentico's admin assembly. We can't reference it at compile time.
 - `HostnameAwareUrlListItemsRetrieverProxy` extends `System.Reflection.DispatchProxy`. Its interface type is resolved via reflection at registration time and passed to `DispatchProxy.Create<TInterface, TProxy>()` (also via reflection).
-- The proxy forwards every call to the inner instance. For `Retrieve(int webPageItemId, int languageId, CancellationToken)` (matched by name + arity at runtime, since we have no compile-time symbol), it post-processes the returned `IEnumerable<UrlListItem>` through `UrlListItemHostnameRewriter`.
+- The proxy forwards every call to the inner instance. For `Retrieve(int webPageItemId, int languageId, ...)` (matched by name and the leading `(int, int)` shape at runtime, since we have no compile-time symbol), it post-processes the returned `IEnumerable<UrlListItem>` through `UrlListItemHostnameRewriter`. The arity tolerance is deliberate: v30.6.x exposes a 2-arg `Retrieve`, v31.x added a trailing `CancellationToken` for 3.
 
 ### `HostnameCultureMappingExtensions`
 `IServiceCollection` extensions:

@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Components;
 
 [assembly: RegisterEmailSection(
     identifier: DancingGoatFullWidthEmailSection.IDENTIFIER,
-    name: "{$dancinggoat.fullwidthemailsection.title$}",
+    name: "Full-width section",
     componentType: typeof(DancingGoatFullWidthEmailSection),
     IconClass = "icon-l-header-text")]
 

@@ -15,16 +15,16 @@ public class DancingGoatButtonWidgetProperties : IEmailWidgetProperties
     /// The button text.
     /// </summary>
     [TextInputComponent(
-        Label = "{$dancinggoat.buttonwidget.text.label$}",
+        Label = "Button text",
         Order = 1,
-        ExplanationText = "{$dancinggoat.buttonwidget.text.explanationtext$}")]
+        ExplanationText = "Enter the text displayed as the button's caption.")]
     public string Text { get; set; } = string.Empty;
 
 
     /// <summary>
     /// The URL linked by button.
     /// </summary>
-    [UrlSelectorComponent(Label = "{$dancinggoat.buttonwidget.linkurl.label$}",
+    [UrlSelectorComponent(Label = "Link URL",
         Order = 2)]
     public string Url { get; set; }
 
@@ -33,10 +33,10 @@ public class DancingGoatButtonWidgetProperties : IEmailWidgetProperties
     /// The button HTML element type. <see cref="ButtonType"/>
     /// </summary>
     [DropDownComponent(
-        Label = "{$dancinggoat.buttonwidget.buttontype.label$}",
+        Label = "Button type",
         Order = 3,
-        ExplanationText = "{$dancinggoat.buttonwidget.buttontype.explanationtext$}",
-        Options = $"{nameof(DancingGoatButtonType.Button)};{{$dancinggoat.buttonwidget.buttontype.option.button$}}\r\n{{nameof(DancingGoatButtonType.Link)}};{{$dancinggoat.buttonwidget.buttontype.option.link$}}",
+        ExplanationText = "Choose how the button is displayed.",
+        Options = $"{nameof(DancingGoatButtonType.Button)};Button\r\n{nameof(DancingGoatButtonType.Link)};Link",
         OptionsValueSeparator = ";")]
     public string ButtonType { get; set; } = nameof(DancingGoatButtonType.Button);
 
@@ -45,10 +45,10 @@ public class DancingGoatButtonWidgetProperties : IEmailWidgetProperties
     /// The horizontal alignment of the button. <see cref="DancingGoatHorizontalAlignment"/>
     /// </summary>
     [DropDownComponent(
-        Label = "{$dancinggoat.buttonwidget.alignment.label$}",
+        Label = "Alignment",
         Order = 4,
-        ExplanationText = "{$dancinggoat.buttonwidget.alignment.explanationtext$}",
-        Options = $"{nameof(DancingGoatHorizontalAlignment.Left)};{{$dancinggoat.buttonwidget.alignment.option.left$}}\r\n{nameof(DancingGoatHorizontalAlignment.Center)};{{$dancinggoat.buttonwidget.alignment.option.center$}}\r\n{nameof(DancingGoatHorizontalAlignment.Right)};{{$dancinggoat.buttonwidget.alignment.option.right$}}",
+        ExplanationText = "Select how you want to position the button",
+        Options = $"{nameof(DancingGoatHorizontalAlignment.Left)};Left\r\n{nameof(DancingGoatHorizontalAlignment.Center)};Center\r\n{nameof(DancingGoatHorizontalAlignment.Right)};Right",
         OptionsValueSeparator = ";")]
     public string ButtonHorizontalAlignment { get; set; } = nameof(DancingGoatHorizontalAlignment.Center);
 }

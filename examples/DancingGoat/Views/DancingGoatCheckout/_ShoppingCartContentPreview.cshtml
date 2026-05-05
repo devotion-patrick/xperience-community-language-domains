@@ -22,8 +22,10 @@
                 </a>
             </div>
             <div class="cart-item-amount">
-                <span>Quantity:</span>
-                <span>@cartItem.Quantity</span>
+                <span>Qty</span>
+                <input type="hidden" name="contentItemId" value="@cartItem.ContentItemId" />
+                <input type="hidden" name="variantId" value="@cartItem.VariantId" />
+                <input type="number" name="quantity" value="@cartItem.Quantity" class="form-control" size="2" min="1" disabled />
             </div>
             
             @Html.ValidationMessage(cartItem.ContentItemId.ToString(), new { @class = "red"} )

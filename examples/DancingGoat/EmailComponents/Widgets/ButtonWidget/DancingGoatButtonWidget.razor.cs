@@ -6,11 +6,11 @@ using Microsoft.AspNetCore.Components;
 
 [assembly: RegisterEmailWidget(
     identifier: DancingGoatButtonWidget.IDENTIFIER,
-    name: "{$dancinggoat.buttonwidget.title$}",
+    name: "Button",
     componentType: typeof(DancingGoatButtonWidget),
     PropertiesType = typeof(DancingGoatButtonWidgetProperties),
     IconClass = "icon-arrow-right-top-square",
-    Description = "{$dancinggoat.buttonwidget.description$}"
+    Description = "Displays a button that opens a specified URL when clicked."
     )]
 
 namespace DancingGoat.EmailComponents;

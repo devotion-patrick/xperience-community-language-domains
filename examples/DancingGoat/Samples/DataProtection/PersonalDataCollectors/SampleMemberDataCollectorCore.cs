@@ -13,45 +13,59 @@ namespace Samples.DancingGoat
     {
         // Lists store Tuples of database column names and their corresponding display names.
         private readonly List<CollectedColumn> memberInfoColumns = new List<CollectedColumn> {
-            new(nameof(MemberInfo.MemberName), "Name"),
-            new(nameof(MemberInfo.MemberEmail), "Email"),
-            new(nameof(MemberInfo.MemberEnabled), "Enabled"),
-            new(nameof(MemberInfo.MemberIsExternal), "Is external"),
-            new(nameof(MemberInfo.MemberCreated), "Created"),
-            new(nameof(MemberInfo.MemberGuid), "GUID"),
+            new CollectedColumn("MemberName", "Name"),
+            new CollectedColumn("MemberIsExternal", "Is external"),
+            new CollectedColumn("MemberEmail", "Email"),
+            new CollectedColumn("MemberEnabled", "Enabled"),
+            new CollectedColumn("MemberCreated", "Created"),
+            new CollectedColumn("MemberID", "ID"),
         };
+
+
+        private readonly IPersonalDataWriter writer;
+
+
+        /// <summary>
+        /// Constructs a new instance of the <see cref="SampleMemberDataCollectorCore"/>.
+        /// </summary>
+        /// <param name="writer">Writer to format output data.</param>
+        public SampleMemberDataCollectorCore(IPersonalDataWriter writer)
+        {
+            this.writer = writer;
+        }
 
 
         /// <summary>
         /// Collect and format all member personal data about given <paramref name="identities"/>.
+        /// Returns null if no data was found.
         /// </summary>
         /// <param name="identities">Identities to collect data about.</param>
-        /// <param name="writer">Writer to format output data.</param>
-        public void CollectData(IEnumerable<BaseInfo> identities, IPersonalDataWriter writer)
+        /// <returns>Formatted personal data.</returns>
+        public string CollectData(IEnumerable<BaseInfo> identities)
         {
             var memberInfos = identities.OfType<MemberInfo>().ToList();
             if (!memberInfos.Any())
             {
-                return;
+                return null;
             }
 
             writer.WriteStartSection("MemberData", "Member data");
 
             foreach (var memberInfo in memberInfos)
             {
-                WriteMemberInfo(memberInfo, writer);
+                WriteMemberInfo(memberInfo);
             }
 
             writer.WriteEndSection();
+
+            return writer.GetResult();
         }
 
 
         /// <summary>
         /// Writes base info for given member to the current writer.
         /// </summary>
-        /// <param name="memberInfo">Member info object.</param>
-        /// <param name="writer">Writer to format output data.</param>
-        private void WriteMemberInfo(MemberInfo memberInfo, IPersonalDataWriter writer)
+        private void WriteMemberInfo(MemberInfo memberInfo)
         {
             writer.WriteStartSection(MemberInfo.OBJECT_TYPE, "Member");
             writer.WriteBaseInfo(memberInfo, memberInfoColumns);

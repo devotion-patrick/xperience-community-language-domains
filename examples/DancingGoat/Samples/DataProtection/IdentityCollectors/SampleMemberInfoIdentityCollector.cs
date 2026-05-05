@@ -35,19 +35,19 @@ namespace Samples.DancingGoat
         /// <param name="identities">List of already collected identities.</param>
         public void Collect(IDictionary<string, object> dataSubjectIdentifiersFilter, List<BaseInfo> identities)
         {
-            if (!dataSubjectIdentifiersFilter.TryGetValue(PersonalDataConstants.DATA_SUBJECT_IDENTIFIER_KEY, out object value))
+            if (!dataSubjectIdentifiersFilter.ContainsKey("email"))
             {
                 return;
             }
 
-            var dataSubjectIdentifier = value as string;
-            if (string.IsNullOrWhiteSpace(dataSubjectIdentifier))
+            var email = dataSubjectIdentifiersFilter["email"] as string;
+            if (string.IsNullOrWhiteSpace(email))
             {
                 return;
             }
 
             // Find members that used the same email and distinct them
-            var members = memberInfoProvider.Get().WhereEquals(nameof(MemberInfo.MemberEmail), dataSubjectIdentifier).ToList();
+            var members = memberInfoProvider.Get().WhereEquals(nameof(MemberInfo.MemberEmail), email).ToList();
 
             identities.AddRange(members);
         }

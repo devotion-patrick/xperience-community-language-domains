@@ -19,10 +19,13 @@ namespace Samples.DancingGoat
     /// </summary>
     internal class SampleContactDataCollectorCore
     {
+        private readonly IPersonalDataWriter writer;
         private readonly IInfoProvider<ActivityInfo> activityInfoProvider;
         private readonly IInfoProvider<CountryInfo> countryInfoProvider;
         private readonly IInfoProvider<StateInfo> stateInfoProvider;
         private readonly IInfoProvider<ConsentAgreementInfo> consentAgreementInfoProvider;
+        private readonly IInfoProvider<AccountContactInfo> accountContactInfoProvider;
+        private readonly IInfoProvider<AccountInfo> accountInfoProvider;
         private readonly IInfoProvider<BizFormInfo> bizFormInfoProvider;
 
         // Lists store Tuples of database column names and their corresponding display names.
@@ -77,6 +80,21 @@ namespace Samples.DancingGoat
             new CollectedColumn("ActivityUrl", "URL"),
             new CollectedColumn("ActivityTitle", "Title"),
             new CollectedColumn("ActivityItemId", "")
+        };
+
+
+        private readonly List<CollectedColumn> accountInfoColumns = new List<CollectedColumn> {
+            new CollectedColumn("AccountName", "Name"),
+            new CollectedColumn("AccountAddress1", "Address"),
+            new CollectedColumn("AccountAddress2", "Address 2"),
+            new CollectedColumn("AccountCity", "City"),
+            new CollectedColumn("AccountZip", "ZIP"),
+            new CollectedColumn("AccountWebSite", "Web site"),
+            new CollectedColumn("AccountEmail", "Email"),
+            new CollectedColumn("AccountPhone", "Phone"),
+            new CollectedColumn("AccountFax", "Fax"),
+            new CollectedColumn("AccountNotes", "Notes"),
+            new CollectedColumn("AccountGUID", "GUID")
         };
 
 
@@ -297,22 +315,31 @@ namespace Samples.DancingGoat
         /// <summary>
         /// Constructs a new instance of the <see cref="SampleContactDataCollectorCore"/>.
         /// </summary>
+        /// <param name="writer">Writer to format output data.</param>
         /// <param name="activityInfoProvider">Activity info provider.</param>
         /// <param name="countryInfoProvider">Country info provider.</param>
         /// <param name="stateInfoProvider">State info provider.</param>
         /// <param name="consentAgreementInfoProvider">Consent agreement info provider.</param>
+        /// <param name="accountContactInfoProvider">Account contact info provider.</param>
+        /// <param name="accountInfoProvider">Account info provider.</param>
         /// <param name="bizFormInfoProvider">BizForm info provider.</param>
         public SampleContactDataCollectorCore(
+            IPersonalDataWriter writer,
             IInfoProvider<ActivityInfo> activityInfoProvider,
             IInfoProvider<CountryInfo> countryInfoProvider,
             IInfoProvider<StateInfo> stateInfoProvider,
             IInfoProvider<ConsentAgreementInfo> consentAgreementInfoProvider,
+            IInfoProvider<AccountContactInfo> accountContactInfoProvider,
+            IInfoProvider<AccountInfo> accountInfoProvider,
             IInfoProvider<BizFormInfo> bizFormInfoProvider)
         {
+            this.writer = writer;
             this.activityInfoProvider = activityInfoProvider;
             this.countryInfoProvider = countryInfoProvider;
             this.stateInfoProvider = stateInfoProvider;
             this.consentAgreementInfoProvider = consentAgreementInfoProvider;
+            this.accountContactInfoProvider = accountContactInfoProvider;
+            this.accountInfoProvider = accountInfoProvider;
             this.bizFormInfoProvider = bizFormInfoProvider;
         }
 
@@ -322,13 +349,13 @@ namespace Samples.DancingGoat
         /// Returns null if no data was found.
         /// </summary>
         /// <param name="identities">Identities to collect data about.</param>
-        /// <param name="writer">Writer to format output data.</param>
-        public void CollectData(IEnumerable<BaseInfo> identities, IPersonalDataWriter writer)
+        /// <returns>Formatted personal data.</returns>
+        public string CollectData(IEnumerable<BaseInfo> identities)
         {
             var contacts = identities.OfType<ContactInfo>().ToList();
             if (!contacts.Any())
             {
-                return;
+                return null;
             }
 
             var contactIDs = contacts.Select(c => c.ContactID).ToList();
@@ -346,13 +373,16 @@ namespace Samples.DancingGoat
 
             writer.WriteStartSection("OnlineMarketingData", "Online marketing data");
 
-            WriteContacts(contacts, writer);
-            WriteConsents(contactIDs, writer);
-            WriteContactActivities(contactActivities, writer);
-            WriteContactGroups(contactContactGroups, writer);
-            WriteDancingGoatSubmittedFormsData(contactEmails, contactIDs, writer);
+            WriteContacts(contacts);
+            WriteConsents(contactIDs);
+            WriteContactActivities(contactActivities);
+            WriteContactAccounts(contactIDs);
+            WriteContactGroups(contactContactGroups);
+            WriteDancingGoatSubmittedFormsData(contactEmails, contactIDs);
 
             writer.WriteEndSection();
+
+            return writer.GetResult();
         }
 
 
@@ -360,8 +390,7 @@ namespace Samples.DancingGoat
         /// Writes all contacts.
         /// </summary>
         /// <param name="contacts">Container of contacts.</param>
-        /// <param name="writer">Writer to format output data.</param>
-        private void WriteContacts(IEnumerable<ContactInfo> contacts, IPersonalDataWriter writer)
+        private void WriteContacts(IEnumerable<ContactInfo> contacts)
         {
             foreach (var contactInfo in contacts)
             {
@@ -388,8 +417,7 @@ namespace Samples.DancingGoat
         /// Writes data subject's consents.
         /// </summary>
         /// <param name="contactIDs">List of contact IDs.</param>
-        /// <param name="writer">Writer to format output data.</param>
-        private void WriteConsents(ICollection<int> contactIDs, IPersonalDataWriter writer)
+        private void WriteConsents(ICollection<int> contactIDs)
         {
             var consentsData = consentAgreementInfoProvider.Get()
                 .Source(s => s.Join<ConsentInfo>("CMS_ConsentAgreement.ConsentAgreementConsentID", "ConsentID"))
@@ -440,7 +468,7 @@ namespace Samples.DancingGoat
                 }
             }
 
-            WriteConsents(consents, consentContentArchives, consentContentAgreements, consentRevocations, writer);
+            WriteConsents(consents, consentContentArchives, consentContentAgreements, consentRevocations);
         }
 
 
@@ -500,9 +528,8 @@ namespace Samples.DancingGoat
         /// <param name="consentContentArchives">Dictionary with consent archive items indexed by consent hash.</param>
         /// <param name="consentContentAgreements">Dictionary with consent agreements indexed by consent hash.</param>
         /// <param name="consentRevocations">Dictionary with consent revocation indexed by ConsentID.</param>
-        /// <param name="writer">Writer to format output data.</param>
         private void WriteConsents(Dictionary<int, ConsentInfo> consents, Dictionary<string, ConsentArchiveInfo> consentContentArchives,
-            Dictionary<string, List<ConsentAgreementInfo>> consentContentAgreements, Dictionary<int, List<ConsentAgreementInfo>> consentRevocations, IPersonalDataWriter writer)
+            Dictionary<string, List<ConsentAgreementInfo>> consentContentAgreements, Dictionary<int, List<ConsentAgreementInfo>> consentRevocations)
         {
             foreach (var agreementsOfSameConsentContent in consentContentAgreements.Values)
             {
@@ -516,7 +543,7 @@ namespace Samples.DancingGoat
                 List<ConsentAgreementInfo> revocationsOfSameConsent;
                 consentRevocations.TryGetValue(consentAgreement.ConsentAgreementConsentID, out revocationsOfSameConsent);
 
-                WriteConsent(consentInfo, consentArchiveInfo, agreementsOfSameConsentContent, revocationsOfSameConsent, writer);
+                WriteConsent(consentInfo, consentArchiveInfo, agreementsOfSameConsentContent, revocationsOfSameConsent);
             }
         }
 
@@ -528,17 +555,16 @@ namespace Samples.DancingGoat
         /// <param name="consentArchiveInfo">Consent archive. Can be null if archive item for given <paramref name="consentInfo"/> does not exist.</param>
         /// <param name="consentAgreements">Agreements of given <paramref name="consentInfo"/>.</param>
         /// <param name="consentRevocations">Revocations of given <paramref name="consentInfo"/>. Can be null if no revocations for given <paramref name="consentInfo"/> have been given.</param>
-        /// <param name="writer">Writer to format output data.</param>
         private void WriteConsent(ConsentInfo consentInfo, ConsentArchiveInfo consentArchiveInfo, IEnumerable<ConsentAgreementInfo> consentAgreements,
-            IEnumerable<ConsentAgreementInfo> consentRevocations, IPersonalDataWriter writer)
+            IEnumerable<ConsentAgreementInfo> consentRevocations)
         {
             writer.WriteStartSection(ConsentInfo.OBJECT_TYPE, "Consent");
 
             var agreedConsentLastModified = consentArchiveInfo?.ConsentArchiveLastModified ?? consentInfo.ConsentLastModified;
 
-            WriteConsentContent(consentInfo, consentArchiveInfo, writer);
-            WriteConsentAgreements(consentAgreements, writer);
-            WriteConsentRevocations(consentRevocations?.Where(cr => cr.ConsentAgreementTime > agreedConsentLastModified), writer);
+            WriteConsentContent(consentInfo, consentArchiveInfo);
+            WriteConsentAgreements(consentAgreements);
+            WriteConsentRevocations(consentRevocations?.Where(cr => cr.ConsentAgreementTime > agreedConsentLastModified));
 
             writer.WriteEndSection();
         }
@@ -549,8 +575,7 @@ namespace Samples.DancingGoat
         /// </summary>
         /// <param name="consentInfo">Consent.</param>
         /// <param name="consentArchiveInfo">Consent archive. Can be null if archive item for given <paramref name="consentInfo"/> does not exist.</param>
-        /// <param name="writer">Writer to format output data.</param>
-        private void WriteConsentContent(ConsentInfo consentInfo, ConsentArchiveInfo consentArchiveInfo, IPersonalDataWriter writer)
+        private void WriteConsentContent(ConsentInfo consentInfo, ConsentArchiveInfo consentArchiveInfo)
         {
             if (consentArchiveInfo == null)
             {
@@ -568,8 +593,7 @@ namespace Samples.DancingGoat
         /// Writes consent agreements.
         /// </summary>
         /// <param name="consentAgreements">Consent agreements.</param>
-        /// <param name="writer">Writer to format output data.</param>
-        private void WriteConsentAgreements(IEnumerable<ConsentAgreementInfo> consentAgreements, IPersonalDataWriter writer)
+        private void WriteConsentAgreements(IEnumerable<ConsentAgreementInfo> consentAgreements)
         {
             foreach (var consentAgreement in consentAgreements)
             {
@@ -582,8 +606,7 @@ namespace Samples.DancingGoat
         /// Writes consent revocations.
         /// </summary>
         /// <param name="consentRevocations">Consent revocations. Can be null if no revocations have been given.</param>
-        /// <param name="writer">Writer to format output data.</param>
-        private void WriteConsentRevocations(IEnumerable<ConsentAgreementInfo> consentRevocations, IPersonalDataWriter writer)
+        private void WriteConsentRevocations(IEnumerable<ConsentAgreementInfo> consentRevocations)
         {
             if (consentRevocations == null)
             {
@@ -601,8 +624,7 @@ namespace Samples.DancingGoat
         /// Writes all contact activities.
         /// </summary>
         /// <param name="contactActivities">List of contact activities.</param>
-        /// <param name="writer">Writer to format output data.</param>
-        private void WriteContactActivities(IEnumerable<ActivityInfo> contactActivities, IPersonalDataWriter writer)
+        private void WriteContactActivities(IEnumerable<ActivityInfo> contactActivities)
         {
             foreach (var contactActivityInfo in contactActivities)
             {
@@ -616,11 +638,58 @@ namespace Samples.DancingGoat
 
 
         /// <summary>
+        /// Gets and writes all contact accounts for specified <paramref name="contactIDs"/>.
+        /// </summary>
+        /// <param name="contactIDs">List of contact IDs.</param>
+        private void WriteContactAccounts(ICollection<int> contactIDs)
+        {
+            var accountIDs = accountContactInfoProvider.Get()
+                .WhereIn("ContactID", contactIDs)
+                .Column("AccountID")
+                .Distinct();
+            var accountInfos = accountInfoProvider.Get()
+                .Columns(accountInfoColumns.Select(t => t.Name))
+                .WhereIn("AccountID", accountIDs)
+                .ToList();
+
+            var countryInfos = countryInfoProvider.Get()
+                .WhereIn("CountryID", accountInfos.Select(r => r.AccountCountryID).ToList())
+                .ToDictionary(ci => ci.CountryID);
+            var stateInfos = stateInfoProvider.Get()
+                .WhereIn("StateID", accountInfos.Select(r => r.AccountStateID).ToList())
+                .ToDictionary(si => si.StateID);
+
+            foreach (var accountInfo in accountInfos)
+            {
+                CountryInfo countryInfo;
+                StateInfo stateInfo;
+                countryInfos.TryGetValue(accountInfo.AccountCountryID, out countryInfo);
+                stateInfos.TryGetValue(accountInfo.AccountStateID, out stateInfo);
+
+                writer.WriteStartSection(AccountInfo.OBJECT_TYPE, "Account");
+
+                writer.WriteBaseInfo(accountInfo, accountInfoColumns);
+
+                if (countryInfo != null)
+                {
+                    writer.WriteBaseInfo(countryInfo, countryInfoColumns);
+                }
+
+                if (stateInfo != null)
+                {
+                    writer.WriteBaseInfo(stateInfo, stateInfoColumns);
+                }
+
+                writer.WriteEndSection();
+            }
+        }
+
+
+        /// <summary>
         /// Writes all contact groups.
         /// </summary>
         /// <param name="contactContactGroups">Contact groups of a specified contact.</param>
-        /// <param name="writer">Writer to format output data.</param>
-        private void WriteContactGroups(IEnumerable<ContactGroupInfo> contactContactGroups, IPersonalDataWriter writer)
+        private void WriteContactGroups(IEnumerable<ContactGroupInfo> contactContactGroups)
         {
             foreach (var contactGroupInfo in contactContactGroups)
             {
@@ -634,10 +703,7 @@ namespace Samples.DancingGoat
         /// <summary>
         /// Gets and writes all submitted forms with data on Dancing Goat site for specified <paramref name="emails"/> and <paramref name="contactIDs"/>.
         /// </summary>
-        /// <param name="emails">Emails to search for.</param>
-        /// <param name="contactIDs">Contact IDs to search for.</param>
-        /// <param name="writer">Writer to format output data.</param>
-        private void WriteDancingGoatSubmittedFormsData(ICollection<string> emails, ICollection<int> contactIDs, IPersonalDataWriter writer)
+        private void WriteDancingGoatSubmittedFormsData(ICollection<string> emails, ICollection<int> contactIDs)
         {
             var consentAgreementGuids = consentAgreementInfoProvider.Get()
                 .Columns("ConsentAgreementGuid")

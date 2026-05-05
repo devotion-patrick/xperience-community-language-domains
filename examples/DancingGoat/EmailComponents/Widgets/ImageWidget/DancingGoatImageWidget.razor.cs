@@ -12,11 +12,11 @@ using Microsoft.AspNetCore.Components;
 
 [assembly: RegisterEmailWidget(
     identifier: DancingGoatImageWidget.IDENTIFIER,
-    name: "{$dancinggoat.imagewidget.title$}",
+    name: "Image",
     componentType: typeof(DancingGoatImageWidget),
     PropertiesType = typeof(DancingGoatImageWidgetProperties),
     IconClass = "icon-picture",
-    Description = "{$dancinggoat.imagewidget.description$}"
+    Description = "Displays an image, which can be selected from images stored as assets in Content hub."
     )]
 
 namespace DancingGoat.EmailComponents;
