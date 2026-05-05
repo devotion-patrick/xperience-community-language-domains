@@ -31,9 +31,6 @@ jobs:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
       DOTNET_NOLOGO: 1
-      # Tell XbykVersionSweepTests where to drop the per-version DLL cache.
-      # Stable path so actions/cache can save/restore across runs.
-      XCLD_XBYK_SWEEP_CACHE_DIR: ${{ runner.temp }}/xcld-xbyk-version-sweep
 
     steps:
       - uses: actions/checkout@v6
@@ -48,10 +45,16 @@ jobs:
       # everything (~1 min); subsequent runs only fetch newly-published
       # versions. Bump the trailing version in the key when the cache layout
       # changes (e.g. test code starts caching different artifacts).
+      #
+      # The path is duplicated between the cache step's `with:` and the test
+      # step's `env:` because GitHub's `runner.*` context isn't valid in
+      # `jobs.<id>.env` (only in step-scoped contexts and certain step keys
+      # like `with:`), so we can't hoist the path into a shared workflow-level
+      # env var.
       - name: Restore XbyK admin DLL cache
         uses: actions/cache@v4
         with:
-          path: ${{ env.XCLD_XBYK_SWEEP_CACHE_DIR }}
+          path: ${{ runner.temp }}/xcld-xbyk-version-sweep
           key: xbyk-sweep-${{ runner.os }}-v1
           restore-keys: |
             xbyk-sweep-${{ runner.os }}-
@@ -66,6 +69,10 @@ jobs:
             --no-restore
 
       - name: Sweep
+        env:
+          # Tell XbykVersionSweepTests where to drop the per-version DLL cache.
+          # Step-level env so `runner.temp` resolves correctly.
+          XCLD_XBYK_SWEEP_CACHE_DIR: ${{ runner.temp }}/xcld-xbyk-version-sweep
         run: |
           dotnet test `
             --configuration Release `
