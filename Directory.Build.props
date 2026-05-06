@@ -4,6 +4,7 @@
     <Authors>Patrick Huerto</Authors>
     <Copyright>Copyright © Patrick Huerto $([System.DateTime]::Now.Year)</Copyright>
     <VersionPrefix>0.1.0</VersionPrefix>
+    <VersionSuffix>preview.1</VersionSuffix>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
 
     <PackageProjectUrl>https://github.com/devotion-patrick/xperience-community-language-domains</PackageProjectUrl>

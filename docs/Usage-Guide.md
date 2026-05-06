@@ -565,5 +565,5 @@ Without the merge, the same hostnames have to be listed in two appsettings secti
 
 ## Compatibility
 
-- Built against **XbyK 31.4.3**.
+- Built against **XbyK 30.6.1** (the lowest supported floor). Verified through v31.4.3 on the 30.7+ and 31.x lines.
 - Targets **net8.0**. Verified to work when consumed by a **net10.0** host.

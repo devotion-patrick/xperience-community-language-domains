@@ -108,7 +108,7 @@ The admin's URLs tab builds its rows directly from `IWebPageUrlListItemsRetrieve
 
 | Xperience Version | Library Version |
 | ----------------- | --------------- |
-| >= 31.4.3         | 0.1.0           |
+| >= 30.6.1         | 0.1.0-preview.1 |
 
 ### Dependencies
 
