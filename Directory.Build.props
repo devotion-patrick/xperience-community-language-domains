@@ -15,7 +15,11 @@
 
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)\images\logo.png" Pack="true" Visible="false" PackagePath="" />
-    <None Include="$(MSBuildThisFileDirectory)\README.md" Pack="true" PackagePath=""/>
+    <!-- Use the project-local README.md (NuGet-tailored) when present; otherwise fall back to the repo-root README. -->
+    <None Include="$(MSBuildThisFileDirectory)\README.md" Pack="true" PackagePath=""
+          Condition="!Exists('$(MSBuildProjectDirectory)\README.md')"/>
+    <None Include="$(MSBuildProjectDirectory)\README.md" Pack="true" PackagePath=""
+          Condition="Exists('$(MSBuildProjectDirectory)\README.md')"/>
   </ItemGroup>
 
   <PropertyGroup>
