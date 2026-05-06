@@ -24,7 +24,7 @@ namespace XperienceCommunity.LanguageDomains.Decorators;
 ///      <see cref="Middleware.HostnameCulturePathPrefixMiddleware"/> on
 ///      <see cref="HttpContext.Items"/>, if any. This is the authoritative
 ///      result of the (host, path) scan against the URL the user typed.
-///   3. A live <see cref="HostLanguageMatcher.Match"/> against the current
+///   3. A live <see cref="HostnameLookupIndex.Match"/> against the current
 ///      request - safety net for paths the path-prefix middleware skipped
 ///      (e.g. excluded admin/static paths) and for setups where it isn't
 ///      registered. Less reliable on multi-language hosts because by this

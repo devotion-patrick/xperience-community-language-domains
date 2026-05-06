@@ -6,9 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
-## [0.1.0-preview.1] — 2026-05-06
+## [0.1.0] — 2026-05-06
 
-First public preview. Hostname-based language switching for Xperience by Kentico website channels.
+First public release. Hostname-based language switching for Xperience by Kentico website channels.
+
+### Fixed
+
+- XML doc cref in `HostnameAwarePreferredLanguageRetriever` now points at the correct `HostnameLookupIndex.Match` (was a stale reference to a renamed type).
 
 ### Added
 
@@ -26,5 +30,5 @@ First public preview. Hostname-based language switching for Xperience by Kentico
 - **.NET**: targets `net8.0`; consumed cleanly from `net8` / `net9` / `net10` host apps.
 - **Hosting**: ASP.NET Core (Kestrel direct or behind an IIS reverse proxy).
 
-[Unreleased]: https://github.com/devotion-patrick/xperience-community-language-domains/compare/v0.1.0-preview.1...HEAD
-[0.1.0-preview.1]: https://github.com/devotion-patrick/xperience-community-language-domains/releases/tag/v0.1.0-preview.1
+[Unreleased]: https://github.com/devotion-patrick/xperience-community-language-domains/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/devotion-patrick/xperience-community-language-domains/releases/tag/v0.1.0
